@@ -1,0 +1,109 @@
+/* RMS Yaskawa — Log history UI extension. Does not modify existing theme. */
+.rms-logs-intro {display:flex;align-items:center;gap:16px;margin-bottom:20px;background:#f7faf8}
+.rms-logs-intro-icon{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;background:#e2f2e8;color:#21785b;font-size:27px}
+.rms-logs-intro strong{display:block;font-size:15px}
+.rms-logs-intro p{font-size:11px;color:#748a7e;margin-top:4px;line-height:1.7}
+.rms-logs-tz{margin-left:auto;white-space:nowrap;color:#377d60;background:#e9f5ed;border-radius:7px;padding:6px 9px;font-size:11px}
+.rms-logs-filter-panel{margin-bottom:20px}
+.rms-logs-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:14px}
+.rms-logs-field{display:grid;gap:6px;min-width:0;font-size:11px;font-weight:600;color:#5c7767}
+.rms-logs-field>.input{width:100%;min-width:0;height:40px;font-weight:400;background:#fff;font-size:12px}
+.rms-logs-custom-range{grid-column:span 3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.rms-logs-custom-range[hidden]{display:none}
+.rms-logs-small-field{max-width:150px}
+.rms-logs-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.rms-logs-actions .btn{min-height:39px}
+.rms-logs-note{font-size:11px;color:#7a8f80;margin-top:15px;line-height:1.7}
+.rms-logs-errors{background:#fff1ee;border:1px solid #f0c0b9;border-radius:8px;color:#a63c32;padding:12px;margin-bottom:14px;font-size:12px}
+.rms-logs-results-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.rms-logs-results-top h2{margin:0}
+.rms-logs-results-top p{font-size:11px;color:#768979;margin-top:4px}
+.rms-logs-export{color:#226f53!important;border-color:#b5d8c2!important;background:#edf7f0!important}
+.rms-logs-legend{background:#f5f8f6;border:1px solid #e7eee8;border-radius:7px;padding:10px 12px;margin-bottom:16px;font-size:11px;color:#75877c;line-height:1.7}
+.rms-logs-table{table-layout:auto}
+.rms-logs-table td{vertical-align:top}
+.rms-logs-table th,.rms-logs-table td{white-space:normal;min-width:100px}
+.rms-logs-table .rms-logs-summary{min-width:220px;max-width:420px;overflow-wrap:anywhere}
+.rms-logs-date-cell{white-space:nowrap!important;font-family:Consolas,monospace;color:#4c6758}
+.rms-logs-sub{display:block;color:#94a399;font-size:10px;margin-top:3px}
+.rms-logs-type{display:inline-block;border-radius:5px;background:#edf3ef;color:#53745f;padding:5px 8px;font-size:10px;white-space:nowrap}
+.rms-logs-status{display:inline-block;border-radius:5px;padding:5px 7px;font-size:10px;font-weight:600;white-space:nowrap;background:#edf0ee;color:#728076}
+.rms-logs-status--ok{background:#e8f5eb;color:#267858}
+.rms-logs-status--warning{background:#fff3e4;color:#a46b27}
+.rms-logs-status--danger{background:#fceae6;color:#b74c3f}
+.rms-logs-status--neutral{background:#edf0ee;color:#71827a}
+.rms-logs-details summary{list-style:none;cursor:pointer;color:#287d5c;font-size:11px;font-weight:600;white-space:nowrap}
+.rms-logs-details summary::-webkit-details-marker{display:none}
+.rms-logs-details summary:hover{text-decoration:underline}
+.rms-logs-details pre{margin:8px 0 0;max-width:440px;max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.65 Consolas,monospace;padding:12px;border-radius:8px;border:1px solid #dce8df;background:#f5f8f5;color:#354e40}
+.rms-logs-empty{text-align:center;padding:30px!important;color:#879588;font-size:12px}
+.rms-logs-pagination{border-top:1px solid #e7eee8;padding-top:16px;margin-top:12px;display:flex;justify-content:space-between;gap:12px;align-items:center;color:#75867b;font-size:11px;flex-wrap:wrap}
+.rms-logs-pagination-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+.rms-logs-page{display:inline-flex;align-items:center;justify-content:center;min-width:34px;min-height:34px;padding:6px 10px;border:1px solid #dce8df;border-radius:7px;background:#fff;color:#426a53;text-decoration:none;font-size:11px;line-height:1.2}
+a.rms-logs-page:hover{background:#edf7f0;border-color:#b5d8c2;color:#226f53}
+.rms-logs-page:focus-visible{outline:2px solid #287d5c;outline-offset:2px}
+.rms-logs-page.is-current{background:#287d5c;border-color:#287d5c;color:#fff;font-weight:700}
+.rms-logs-page.is-disabled{color:#a1aea5;background:#f7f9f7;cursor:default}
+.rms-logs-page-gap{padding:0 4px;color:#819385}
+@media(max-width:650px){.rms-logs-pagination-actions{justify-content:flex-start}}
+@media(max-width:1150px){.rms-logs-form{grid-template-columns:repeat(2,minmax(0,1fr))}.rms-logs-custom-range{grid-column:span 2}}
+@media(max-width:650px){.rms-logs-form{grid-template-columns:1fr}.rms-logs-custom-range{grid-column:span 1;grid-template-columns:1fr}.rms-logs-small-field{max-width:100%}.rms-logs-intro{align-items:flex-start;flex-wrap:wrap}.rms-logs-tz{margin-left:0}.rms-logs-table-wrap{overflow-x:auto}.rms-logs-table{min-width:860px}}
+
+/* =========================================================
+   Multi-robot picker: checkbox dropdown + selected chips
+   ========================================================= */
+.rms-logs-robot-field{position:relative}
+.rms-logs-robot-select{position:relative;width:100%;font-weight:400}
+.rms-logs-robot-trigger{height:40px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border:1px solid var(--line,#e4eae6);border-radius:7px;background:#fff;color:#4a6957;font-size:12px;cursor:pointer;list-style:none}
+.rms-logs-robot-trigger::-webkit-details-marker{display:none}
+.rms-logs-robot-trigger:focus-visible{outline:2px solid #98cdb8;outline-offset:2px}
+.rms-logs-robot-caret{font-size:19px;color:#738c7d;transition:transform .15s}
+.rms-logs-robot-select[open] .rms-logs-robot-caret{transform:rotate(180deg)}
+.rms-logs-robot-select[open] .rms-logs-robot-trigger{border-color:#94baa3}
+.rms-logs-robot-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;min-width:245px;z-index:50;background:#fff;border:1px solid #cbded2;border-radius:10px;padding:10px;box-shadow:0 14px 28px #1b38221e}
+.rms-logs-robot-tools{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+.rms-logs-robot-tool{border:0;background:#edf6f0;color:#267858;border-radius:6px;padding:6px 9px;font-size:10px;cursor:pointer}
+.rms-logs-robot-tool:hover{background:#dcefe3}
+.rms-logs-robot-search{width:100%;min-width:0;height:36px;font-size:11px;margin-bottom:6px}
+.rms-logs-robot-options{max-height:240px;overflow-y:auto;display:grid;gap:2px}
+.rms-logs-robot-option{display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;font-size:11px;color:#354f3d}
+.rms-logs-robot-option:hover{background:#f0f7f2}
+.rms-logs-robot-option[hidden]{display:none}
+.rms-logs-robot-option input[type="checkbox"]{accent-color:#247b60;flex:none;width:16px;height:16px}
+.rms-logs-robot-option span{min-width:0;display:grid;gap:2px}
+.rms-logs-robot-option strong{font-size:11px}
+.rms-logs-robot-option small{font-size:10px;color:#83968a}
+.rms-logs-robot-help{font-size:10px;color:#819385;line-height:1.5;margin:9px 0}
+.rms-logs-robot-done{width:100%;font-size:11px}
+.rms-logs-selected-robots{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.rms-logs-selected-robots[hidden]{display:none}
+.rms-logs-robot-chip{display:inline-block;font-size:10px;color:#247b60;background:#e9f5ec;border:1px solid #c5e2d0;border-radius:5px;padding:3px 7px}
+@media(max-width:650px){.rms-logs-robot-menu{min-width:0}}
+
+
+/* =========================================================
+   Multi-jenis-log picker — same visual pattern as robot picker
+   ========================================================= */
+.rms-logs-type-field{position:relative}
+.rms-logs-type-select{position:relative;width:100%;font-weight:400}
+.rms-logs-type-trigger{height:40px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border:1px solid var(--line,#e4eae6);border-radius:7px;background:#fff;color:#4a6957;font-size:12px;cursor:pointer;list-style:none}
+.rms-logs-type-trigger::-webkit-details-marker{display:none}
+.rms-logs-type-trigger:focus-visible{outline:2px solid #98cdb8;outline-offset:2px}
+.rms-logs-type-trigger #rms-logs-type-summary{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rms-logs-type-caret{font-size:19px;color:#738c7d;transition:transform .15s}
+.rms-logs-type-select[open] .rms-logs-type-caret{transform:rotate(180deg)}
+.rms-logs-type-select[open] .rms-logs-type-trigger{border-color:#94baa3}
+.rms-logs-type-menu{position:absolute;top:calc(100% + 5px);left:0;right:0;min-width:290px;z-index:50;background:#fff;border:1px solid #cbded2;border-radius:10px;padding:10px;box-shadow:0 14px 28px #1b38221e}
+.rms-logs-type-tools{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.rms-logs-type-tool{border:0;background:#edf6f0;color:#267858;border-radius:6px;padding:6px 9px;font-size:10px;cursor:pointer}
+.rms-logs-type-tool:hover{background:#dcefe3}
+.rms-logs-type-options{max-height:260px;overflow-y:auto;display:grid;gap:2px}
+.rms-logs-type-option{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:6px;cursor:pointer;font-size:11px;color:#354f3d}
+.rms-logs-type-option:hover{background:#f0f7f2}
+.rms-logs-type-option input[type="checkbox"]{accent-color:#247b60;width:16px;height:16px;flex:none}
+.rms-logs-type-help{font-size:10px;color:#819385;line-height:1.5;margin:9px 0}
+.rms-logs-type-done{width:100%;font-size:11px}
+.rms-logs-selected-types{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.rms-logs-selected-types[hidden]{display:none}
+.rms-logs-type-chip{display:inline-block;font-size:10px;color:#247b60;background:#e9f5ec;border:1px solid #c5e2d0;border-radius:5px;padding:3px 7px}
+@media(max-width:650px){.rms-logs-type-menu{min-width:0}}

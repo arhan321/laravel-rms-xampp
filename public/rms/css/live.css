@@ -1,0 +1,16 @@
+/* Additive RMS live-only indicators; existing UI styles remain unchanged. */
+.rms-live-indicator{display:inline-flex;align-items:center;border:1px solid #c7d8ce;background:#f0faf5;color:#23734b;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.03em;white-space:nowrap}
+.rms-live-indicator::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:7px}
+.rms-live-indicator[data-state="fallback"]{color:#91651d;background:#fff7e6;border-color:#eee0bd}
+.rms-live-indicator[data-state="stale"],.rms-live-indicator[data-state="error"]{color:#ad4b3b;background:#fff1ef;border-color:#f6d5d0}
+.rms-robot-card[hidden]{display:none!important}
+@media(max-width:800px){.rms-live-indicator{font-size:9px;padding:4px 7px}}
+
+/* Additional Reverb server transport indicator. Existing RMS colors/layout preserved. */
+.rms-reverb-indicator{font-weight:750}
+.rms-reverb-indicator[data-state="connecting"]{color:#64748b;background:#f1f5f9;border-color:#cbd5e1}
+.rms-reverb-warning{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;margin:0 0 16px;padding:12px 15px;border:1px solid #e9b4a8;border-left:4px solid #c24731;background:#fff7f4;border-radius:10px;color:#7d3026;font-size:13px;line-height:1.5}
+.rms-reverb-warning[hidden]{display:none!important}
+.rms-reverb-warning strong{font-weight:750}
+.rms-reverb-warning span{color:#85453c}
+@media(max-width:900px){.rms-reverb-warning{font-size:12px}.top-actions .rms-reverb-indicator{max-width:190px;white-space:normal}}

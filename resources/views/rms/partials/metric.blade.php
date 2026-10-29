@@ -1,0 +1,1 @@
+<div class="stat"><div class="stat-label">{{ $label }}</div><div class="stat-value number">{{ $value ?? '—' }} @if(!empty($unit))<small>{{ $unit }}</small>@endif</div><div class="stat-foot">{{ $description ?? '' }}</div></div>

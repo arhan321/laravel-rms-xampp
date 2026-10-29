@@ -1,0 +1,237 @@
+.rms-tech-guide {
+  --tech-accent: #26749d;
+  --tech-accent-soft: #e9f5fb;
+  --tech-ink: #203b49;
+  --tech-muted: #6f8793;
+  overflow: hidden;
+  border: 1px solid #cfe0e8;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--tech-ink);
+  box-shadow: 0 5px 18px rgba(23, 69, 91, .05);
+}
+
+.rms-tech-guide,
+.rms-tech-guide *,
+.rms-tech-guide *::before,
+.rms-tech-guide *::after {
+  box-sizing: border-box;
+}
+
+.rms-tech-guide > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 12px 16px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  background: linear-gradient(105deg, #f8fcfe, #eef8fc);
+}
+
+.rms-tech-guide > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rms-tech-guide[open] > summary {
+  border-bottom: 1px solid #dbe8ee;
+}
+
+.rms-tech-guide-icon {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tech-accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.rms-tech-guide-heading {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rms-tech-guide-heading strong {
+  font-size: 12px;
+}
+
+.rms-tech-guide-heading small {
+  color: var(--tech-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.rms-tech-guide-toggle {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #c9dde7;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--tech-accent);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.rms-tech-guide .when-open,
+.rms-tech-guide[open] .when-closed {
+  display: none;
+}
+
+.rms-tech-guide[open] .when-open {
+  display: inline;
+}
+
+.rms-tech-guide-body {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+}
+
+.rms-tech-term-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.rms-tech-term-grid article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e0eaee;
+  border-radius: 9px;
+  background: #fbfdfe;
+}
+
+.rms-tech-term-grid strong {
+  display: block;
+  color: #294b5c;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.rms-tech-term-grid strong span {
+  color: var(--tech-accent);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.rms-tech-term-grid p {
+  margin: 6px 0 0;
+  color: var(--tech-muted);
+  font-size: 8.5px;
+  line-height: 1.65;
+}
+
+.rms-tech-term-grid p b {
+  color: #456473;
+}
+
+.rms-tech-example {
+  display: grid;
+  grid-template-columns: minmax(230px, .8fr) minmax(340px, 1.2fr);
+  gap: 10px 16px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid #ead9b7;
+  border-radius: 9px;
+  background: #fffaf1;
+}
+
+.rms-tech-example > div:first-child span {
+  display: block;
+  margin-bottom: 4px;
+  color: #9a7435;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .8px;
+}
+
+.rms-tech-example > div:first-child strong {
+  color: #6d5124;
+  font-size: 10px;
+}
+
+.rms-tech-example-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rms-tech-example-flow span {
+  padding: 7px 8px;
+  border: 1px solid #e7d7b9;
+  border-radius: 6px;
+  background: #fff;
+  color: #846a3d;
+  font-size: 8px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.rms-tech-example-flow .is-active {
+  border-color: #e3b55e;
+  background: #fff0cf;
+  color: #9a6310;
+}
+
+.rms-tech-example > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #826f4e;
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+
+.rms-tech-safety {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  border-left: 4px solid #5c8ba4;
+  border-radius: 7px;
+  background: #f2f8fb;
+}
+
+.rms-tech-safety strong {
+  flex: 0 0 auto;
+  color: #315f77;
+  font-size: 9px;
+}
+
+.rms-tech-safety p {
+  margin: 0;
+  color: #65818f;
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1100px) {
+  .rms-tech-term-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rms-tech-example {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .rms-tech-guide-toggle {
+    display: none;
+  }
+
+  .rms-tech-term-grid,
+  .rms-tech-example-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .rms-tech-safety {
+    display: grid;
+  }
+}
