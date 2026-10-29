@@ -4,23 +4,24 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web;
 
-use App\Support\RmsDatabase;
-use App\Http\Controllers\Controller;
-use App\Models\MaintenanceLog;
-use App\Models\MaintenanceRecommendation;
 use App\Models\Robot;
-use App\Models\RobotAlarmEvent;
-use App\Models\RobotAlarmSnapshot;
-use App\Models\RobotConnectionEvent;
-use App\Models\RobotHealthAssessment;
-use App\Models\RobotOperatingTimeSample;
-use App\Models\RobotTelemetrySample;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Query\Builder;
+use App\Support\RmsDatabase;
 use Illuminate\Http\Request;
+use App\Models\MaintenanceLog;
+use App\Models\RobotAlarmEvent;
+use Illuminate\Validation\Rule;
+use App\Models\RobotAlarmSnapshot;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use App\Http\Controllers\Controller;
+use App\Models\RobotConnectionEvent;
+use App\Models\RobotTelemetrySample;
+use App\Models\RobotHealthAssessment;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Schema;
+use App\Models\RobotOperatingTimeSample;
+use App\Models\MaintenanceRecommendation;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -61,6 +62,8 @@ final class RobotLogController extends Controller
         'maintenance' => ['id', 'result', 'action_type', 'performed_by', 'findings', 'action_taken', 'started_at', 'completed_at', 'verified_by', 'verified_at'],
         'recommendation' => ['id', 'status', 'title', 'priority', 'recommendation_text', 'source', 'evidence'],
     ];
+
+    private ?string $maintenanceTimestampExpression = null;
 
     public function index(Request $request)
     {
@@ -284,6 +287,26 @@ final class RobotLogController extends Controller
         ], static fn ($value) => $value !== null && $value !== '');
     }
 
+    /**
+     * Native SQL Server migrations and PostgreSQL imports use different names
+     * for the same computed maintenance timestamp. Prefer the indexed column
+     * when available, otherwise retain the original COALESCE expression.
+     */
+    private function maintenanceTimestamp(): string
+    {
+        if ($this->maintenanceTimestampExpression !== null) {
+            return $this->maintenanceTimestampExpression;
+        }
+
+        foreach (['rms_log_at', 'rms_log_time_sort'] as $column) {
+            if (Schema::hasColumn('maintenance_logs', $column)) {
+                return $this->maintenanceTimestampExpression = $column;
+            }
+        }
+
+        return $this->maintenanceTimestampExpression = self::SOURCES['maintenance'][2];
+    }
+
     private function query(array $f): Builder
     {
         $selected = $f['types'] === [] ? array_keys(self::SOURCES) : $f['types'];
@@ -292,7 +315,7 @@ final class RobotLogController extends Controller
         foreach ($selected as $type) {
             [, $table, $timestamp] = self::SOURCES[$type];
             if ($type === 'maintenance' && DB::connection()->getDriverName() === 'sqlsrv') {
-                $timestamp = 'rms_log_at';
+                $timestamp = $this->maintenanceTimestamp();
             }
             $utcTimestamp = RmsDatabase::utcTimestamp($timestamp);
             $part = DB::table($table)
@@ -436,4 +459,5 @@ final class RobotLogController extends Controller
         return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $text) ? "'" . $text : $text;
     }
 }
+
 
