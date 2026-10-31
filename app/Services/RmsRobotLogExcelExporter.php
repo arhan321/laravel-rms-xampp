@@ -17,9 +17,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * Presentation-only report generator. Never writes to the controller or PostgreSQL.
+ * Presentation-only report generator. Never writes to the controller or application database.
  * The controller supplies the same validated-filter results shown in Robot Logs.
- * No 'hours' is computed from raw SDK values unless value_seconds was verified.
+ * Hours are derived from stored numeric seconds, independently of PM approval.
  */
 final class RmsRobotLogExcelExporter
 {
@@ -27,8 +27,17 @@ final class RmsRobotLogExcelExporter
     private const AXES = ['S', 'L', 'U', 'R', 'B', 'T'];
 
     private const DETAILS = [
+        'servo_monitor' => ['Servo Monitor', 'SERVO MONITOR · HISTORI POSISI PULSE',
+            ['Waktu WIB', 'Robot', 'Nama Robot', 'Status Baca', 'Satuan', 'Pulse S', 'Pulse L', 'Pulse U', 'Pulse R', 'Pulse B', 'Pulse T', 'Sequence', 'Kode SDK', 'Pesan SDK', 'ID Data'],
+            [24, 16, 28, 17, 15, 17, 17, 17, 17, 17, 17, 14, 14, 45, 12], 4],
+        'servo_torque' => ['Servo Monitor - Torq', 'SERVO MONITOR - TORQ · HISTORI ENAM AXIS',
+            ['Waktu WIB', 'Robot', 'Nama Robot', 'Status Baca', 'Satuan Torque', 'Torq S', 'Torq L', 'Torq U', 'Torq R', 'Torq B', 'Torq T', 'Sequence', 'Kode SDK', 'Pesan SDK', 'ID Data'],
+            [24, 16, 28, 17, 19, 16, 16, 16, 16, 16, 16, 14, 14, 45, 12], 4],
+        'control_power' => ['Control Power Time', 'CONTROL POWER TIME · HISTORI CONTROLLER ON',
+            ['Waktu WIB', 'Robot', 'Nama Robot', 'Tipe Waktu', 'Status Baca', 'Nilai Mentah SDK', 'Detik Tersimpan', 'Jam Tersimpan', 'Kode SDK', 'Pesan SDK', 'ID Data'],
+            [24, 16, 28, 28, 16, 34, 21, 19, 13, 52, 12], 5],
         'operating' => ['Operating Time', 'OPERATING TIME · DETAIL PEMBACAAN',
-            ['Waktu WIB', 'Robot', 'Nama Robot', 'Tipe Waktu', 'Status Baca', 'Nilai Mentah SDK', 'Detik Tervalidasi', 'Jam Tervalidasi', 'Kode SDK', 'Pesan SDK', 'ID Data'],
+            ['Waktu WIB', 'Robot', 'Nama Robot', 'Tipe Waktu', 'Status Baca', 'Nilai Mentah SDK', 'Detik Tersimpan', 'Jam Tersimpan', 'Kode SDK', 'Pesan SDK', 'ID Data'],
             [24, 16, 28, 28, 16, 34, 21, 19, 13, 52, 12], 5],
         'alarm_event' => ['Alarm Events', 'ALARM EVENTS · DETAIL KEJADIAN',
             ['Waktu Mulai WIB', 'Robot', 'Nama Robot', 'Kode Alarm', 'Subcode', 'Nama Alarm', 'Severity', 'Status', 'Terakhir Dilihat WIB', 'Clear WIB', 'Sumber', 'Detail / Temuan', 'Kunci Event', 'ID Data'],
@@ -144,7 +153,19 @@ final class RmsRobotLogExcelExporter
         $status = (string) $entry['status'];
 
         return match ($entry['type']) {
-            'operating' => [
+            'servo_monitor' => [
+                $time, $robot, $name, $status, 'pulse',
+                ...array_map(fn ($a) => $this->numberOrBlank(($d['position_ok'] ?? false) === true ? $this->axis($d['position_pulses'] ?? null, $a) : null), self::AXES),
+                $this->numberOrBlank($d['sequence'] ?? null),
+                $this->numberOrBlank($d['position_status_code'] ?? null), $this->display($d['position_status_message'] ?? null), $id,
+            ],
+            'servo_torque' => [
+                $time, $robot, $name, $status, $this->display($d['torque_unit'] ?? null),
+                ...array_map(fn ($a) => $this->numberOrBlank(($d['torque_ok'] ?? false) === true ? $this->axis($d['torque_axes'] ?? null, $a) : null), self::AXES),
+                $this->numberOrBlank($d['sequence'] ?? null),
+                $this->numberOrBlank($d['torque_status_code'] ?? null), $this->display($d['torque_status_message'] ?? null), $id,
+            ],
+            'control_power', 'operating' => [
                 $time, $robot, $name, $this->display($d['time_type'] ?? null), $status,
                 $this->display($d['raw_value'] ?? null),
                 $this->verifiedNumber($d['value_seconds'] ?? null),
@@ -202,7 +223,12 @@ final class RmsRobotLogExcelExporter
     private function importantDetails(string $type, array $d): string
     {
         return match ($type) {
-            'operating' => 'Tipe: ' . $this->display($d['time_type'] ?? null)
+            'servo_monitor' => 'Posisi pulse SLURBT: '.$this->display($d['position_pulses'] ?? null)
+                .' | Status: '.$this->boolText($d['position_ok'] ?? null),
+            'servo_torque' => 'Torque SLURBT: '.$this->display($d['torque_axes'] ?? null)
+                .' | Unit: '.$this->display($d['torque_unit'] ?? null)
+                .' | Status: '.$this->boolText($d['torque_ok'] ?? null),
+            'control_power', 'operating' => 'Tipe: ' . $this->display($d['time_type'] ?? null)
                 . ' | Raw SDK: ' . $this->display($d['raw_value'] ?? null)
                 . ' | Detik valid: ' . $this->display($d['value_seconds'] ?? null)
                 . ' | Pesan: ' . $this->display($d['message'] ?? null),
@@ -509,7 +535,7 @@ final class RmsRobotLogExcelExporter
         }
         $notesRow = max(30, $r + 2);
         $s->mergeCells('A'.$notesRow.':F'.$notesRow);
-        $this->text($s, 'A'.$notesRow, 'Buka tab Operating Time / Alarm Events / Telemetry dan lainnya untuk detail masing-masing record.');
+        $this->text($s, 'A'.$notesRow, 'Buka tab Servo Monitor / Servo Monitor - Torq / Control Power Time dan tab lain untuk detail. Posisi dan torque merupakan dua jenis pembacaan dari sampel telemetry yang sama.');
         $s->getStyle('A'.$notesRow)->getFont()->setBold(true)->getColor()->setRGB('2C6B56');
         $s->freezePane('A5');
     }
@@ -520,3 +546,4 @@ final class ExcelNumber
 {
     public function __construct(public readonly float $value) {}
 }
+

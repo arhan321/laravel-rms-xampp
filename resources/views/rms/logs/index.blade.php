@@ -8,7 +8,7 @@
   <div class="rms-logs-intro-icon" aria-hidden="true">≡</div>
   <div>
     <strong>Log operasi seluruh robot</strong>
-    <p>Termasuk telemetry PULSE/torque, alarm, connection, operating time, equipment health, dan jurnal maintenance. Ini histori pembacaan, bukan perintah robot.</p>
+    <p>Histori Servo Monitor (posisi/pulse), Servo Monitor - Torq, Control Power Time, operating time, alarm, koneksi, health, dan maintenance. Pilih jenis log untuk melihat pembacaan yang dibutuhkan.</p>
   </div>
   <span class="rms-logs-tz">WIB · UTC+7</span>
 </section>
@@ -178,7 +178,7 @@
     </div>
     <a class="btn rms-logs-export" href="{{ $exportUrl }}">↓ Download Excel (.xlsx)</a>
   </div>
-  <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Jenis <strong>Semua</strong> termasuk telemetry 1 detik; klik <strong>Event penting</strong> di filter Jenis log untuk melihat alarm dan maintenance tanpa tenggelam oleh sampel berkala.</div>
+  <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Satu sampel telemetry dapat ditampilkan sebagai dua jenis pembacaan: <strong>Servo Monitor</strong> dan <strong>Servo Monitor - Torq</strong>. <strong>Control Power Time</strong> membaca counter ControllerOnTime. Klik <strong>Event penting</strong> untuk fokus pada alarm dan maintenance.</div>
 
   <div class="table-wrap rms-logs-table-wrap">
     <table class="data-table rms-logs-table">
@@ -187,7 +187,7 @@
       </tr></thead>
       <tbody>
         @forelse($entries as $entry)
-          <tr>
+          <tr data-rms-log-type="{{ $entry['type'] }}">
             <td class="rms-logs-date-cell"><time>{{ $entry['time_wib'] }}</time></td>
             <td><a class="rms-link" href="{{ route('rms.robots.show', $entry['robot_id']) }}">{{ $entry['robot_code'] }}</a>
               <small class="rms-logs-sub">{{ $entry['robot_name'] }}</small></td>
@@ -254,3 +254,4 @@
   <div class="rms-logs-note">Ekspor Excel dibatasi maksimal 5.000 baris per permintaan agar dashboard tetap ringan. Jika data lebih banyak, laporan memberi penanda DIPOTONG. Sempitkan waktu atau pilih robot tertentu untuk mengekspor sisanya.</div>
 </section>
 @endsection
+

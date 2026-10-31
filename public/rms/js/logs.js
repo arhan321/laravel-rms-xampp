@@ -4,7 +4,7 @@
  * Full replacement for src/public/rms/js/logs.js
  * - Existing robot/type/date filtering preserved.
  * - JSON <details> progressively enhanced to an accessible read-only modal.
- * - Data always comes from Laravel Blade / PostgreSQL. No invented telemetry.
+ * - Data always comes from Laravel Blade / SQL Server or PostgreSQL. No invented telemetry.
  * - No remote resources, extra dependencies, API calls, or robot commands.
  */
 
@@ -226,6 +226,9 @@
 
   function category(label) {
     const lower = label.toLowerCase();
+    if (lower.includes('servo monitor') && lower.includes('torq')) return 'servo_torque';
+    if (lower.includes('servo monitor')) return 'servo_monitor';
+    if (lower.includes('control power')) return 'control_power';
     if (lower.includes('telemetry')) return 'telemetry';
     if (lower.includes('alarm reading')) return 'alarm_snapshot';
     if (lower.includes('alarm events')) return 'alarm_event';
@@ -262,28 +265,58 @@
     const place = section(name);
     place.appendChild(make('div', 'rms-log-paragraph', value));
   }
-  function axisTable(data) {
+  function axisTable(data, mode = 'combined') {
     const place = section('Pembacaan enam axis · S / L / U / R / B / T');
     const wrap = make('div', 'rms-log-axis-wrap');
     const tableEl = make('table', 'rms-log-axis');
     const header = make('thead');
     const tr = make('tr');
-    for (const v of ['Axis', 'Position (pulse)', 'Motor Torque']) tr.appendChild(make('th', '', v));
+    const showPosition = mode !== 'torque';
+    const showTorque = mode !== 'position';
+    const columns = ['Axis'];
+    if (showPosition) columns.push('Servo Monitor (pulse)');
+    if (showTorque) columns.push(`Servo Monitor - Torq (${str(data.torque_unit)})`);
+    for (const v of columns) tr.appendChild(make('th', '', v));
     header.appendChild(tr);
     const tbody = make('tbody');
     const pos = data.position_pulses && typeof data.position_pulses === 'object' ? data.position_pulses : {};
     const torque = data.torque_axes && typeof data.torque_axes === 'object' ? data.torque_axes : {};
     for (const axis of axisNames) {
       const row = make('tr');
-      add(row,
-        make('td', '', axisNamesLong[axis]),
-        make('td', '', data.position_ok === true ? number(pos[axis], 0) : 'Tidak tersedia'),
-        make('td', '', data.torque_ok === true ? number(torque[axis], 4) : 'Tidak tersedia'));
+      row.appendChild(make('td', '', axisNamesLong[axis]));
+      if (showPosition) row.appendChild(make('td', '', data.position_ok === true ? number(pos[axis], 0) : 'Tidak tersedia'));
+      if (showTorque) row.appendChild(make('td', '', data.torque_ok === true ? number(torque[axis], 4) : 'Tidak tersedia'));
       tbody.appendChild(row);
     }
     add(tableEl, header, tbody);
     wrap.appendChild(tableEl);
     place.appendChild(wrap);
+  }
+  function renderServoMonitor(data) {
+    grid('Histori Servo Monitor', [
+      ['Status pembacaan posisi', bool(data.position_ok)],
+      ['Satuan posisi', 'pulse'],
+      ['Urutan pembacaan', str(data.sequence)],
+      ['Kode SDK', str(data.position_status_code)],
+    ]);
+    axisTable(data, 'position');
+    if (data.position_status_message) note(data.position_status_message);
+    if (data.position_ok !== true) note('Pembacaan posisi gagal. Nilai tidak tersedia tidak diganti menjadi nol.');
+  }
+  function renderServoTorque(data) {
+    grid('Histori Servo Monitor - Torq', [
+      ['Status pembacaan torque', bool(data.torque_ok)],
+      ['Satuan tersimpan', str(data.torque_unit), 'Satuan asli sumber; tidak dikonversi otomatis menjadi Nm atau %'],
+      ['Urutan pembacaan', str(data.sequence)],
+      ['Kode SDK', str(data.torque_status_code)],
+    ]);
+    axisTable(data, 'torque');
+    if (data.torque_status_message) note(data.torque_status_message);
+    if (data.torque_ok !== true) {
+      note('Pembacaan torque gagal. Nilai tidak tersedia tidak diganti menjadi nol.');
+    } else if (data.torque_axes && axisNames.every(axis => data.torque_axes[axis] === 0)) {
+      note('Keenam torque bernilai 0 pada sampel historis ini. Cocokkan dengan kondisi controller pada waktu pengambilan data.');
+    }
   }
   function renderTelemetry(data) {
     grid('Hasil pembacaan sensor', [
@@ -311,20 +344,23 @@
     return `${number(hours, 0)} jam ${mins} menit ${secs} detik`;
   }
   function renderOperating(data) {
-    const verified = data.read_ok === true && typeof data.value_seconds === 'number' && Number.isFinite(data.value_seconds) && data.value_seconds >= 0;
-    grid('Informasi jam operasi', [
-      ['Jenis waktu', str(data.time_type)],
+    const stored = data.read_ok === true && typeof data.value_seconds === 'number' && Number.isFinite(data.value_seconds) && data.value_seconds >= 0;
+    const controlPower = data.time_type === 'ControllerOnTime';
+    grid(controlPower ? 'Histori Control Power Time' : 'Histori operating time', [
+      ['Counter', str(data.counter_label || data.time_type)],
       ['Status pembacaan', bool(data.read_ok)],
-      ['Operating hours terverifikasi', verified ? `${number(data.value_seconds / 3600)} jam` : 'Belum terverifikasi', 'Hanya nilai jam yang sudah diperiksa yang ditampilkan'],
-      ['Controller Status Code', str(data.status_code)],
+      ['Durasi tersimpan (jam)', stored ? `${number(data.value_seconds / 3600, 4)} h` : 'Tidak tersedia'],
+      ['Durasi tersimpan (detik)', stored ? number(data.value_seconds, 0) : 'Tidak tersedia'],
+      ['Kode SDK', str(data.status_code)],
     ]);
-    const candidate = parseElapsed(data.raw_value);
-    if (candidate) {
-      grid('Operating Time yang terbaca', [['Elapsed Time', candidate, 'Belum merupakan angka PM terverifikasi']]);
+    const candidate = data.read_ok === true ? parseElapsed(data.raw_value) : null;
+    if (!stored && candidate) {
+      grid('Durasi dari teks SDK', [['Elapsed Time', candidate, 'Pembacaan teks; belum menjadi durasi numerik tersimpan']]);
     }
     if (data.raw_value) paragraph('Keterangan asli dari controller', data.raw_value);
     if (data.message) note(data.message);
-    if (!verified) note('Operating Time belum diverifikasi terhadap pendant Yaskawa. Jangan gunakan angka ini untuk menjadwalkan penggantian komponen secara otomatis.');
+    if (controlPower) note('Control Power Time adalah akumulasi waktu controller menyala.');
+    else note('Durasi historis ini tidak otomatis membuktikan verifikasi jam untuk keputusan preventive maintenance.');
   }
   function renderAlarmSnapshot(data) {
     grid('Status pembacaan alarm', [
@@ -406,6 +442,9 @@
     note('Rekomendasi otomatis harus diverifikasi tim maintenance sebelum melakukan tindakan pada robot.');
   }
   const renderers = {
+    servo_monitor: renderServoMonitor,
+    servo_torque: renderServoTorque,
+    control_power: renderOperating,
     telemetry: renderTelemetry,
     operating: renderOperating,
     alarm_snapshot: renderAlarmSnapshot,
@@ -418,8 +457,8 @@
   function render(record) {
     const {row, data} = record;
     const typeLabel = row.querySelector('.rms-logs-type')?.textContent.trim() ?? 'Jenis log tidak diketahui';
-    const kind = category(typeLabel);
-    title.textContent = ({telemetry:'Detail pembacaan sensor', operating:'Detail jam operasi', alarm_snapshot:'Detail snapshot alarm', alarm_event:'Detail kejadian alarm', connection:'Detail koneksi', health:'Detail equipment health', maintenance:'Detail maintenance', recommendation:'Detail rekomendasi'})[kind] || 'Detail log robot';
+    const kind = row.dataset.rmsLogType || category(typeLabel);
+    title.textContent = ({servo_monitor:'Histori Servo Monitor', servo_torque:'Histori Servo Monitor - Torq', control_power:'Histori Control Power Time', telemetry:'Detail pembacaan sensor', operating:'Detail jam operasi', alarm_snapshot:'Detail snapshot alarm', alarm_event:'Detail kejadian alarm', connection:'Detail koneksi', health:'Detail equipment health', maintenance:'Detail maintenance', recommendation:'Detail rekomendasi'})[kind] || 'Detail log robot';
     subtitle.textContent = `${row.querySelector('.rms-link')?.textContent.trim() || 'Robot'} · ${row.querySelector('.rms-logs-date-cell')?.textContent.trim() || 'Waktu belum tersedia'} WIB`;
     body.replaceChildren();
     body.scrollTop = 0;
@@ -469,3 +508,4 @@
     }
   });
 })();
+

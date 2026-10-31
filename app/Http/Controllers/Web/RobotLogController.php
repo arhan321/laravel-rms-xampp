@@ -40,7 +40,9 @@ final class RobotLogController extends Controller
 
     // Expressions are hard-coded: never construct SQL identifiers from request input.
     private const SOURCES = [
-        'telemetry' => [RobotTelemetrySample::class, 'robot_telemetry_samples', 'sampled_at'],
+        'servo_monitor' => [RobotTelemetrySample::class, 'robot_telemetry_samples', 'sampled_at'],
+        'servo_torque' => [RobotTelemetrySample::class, 'robot_telemetry_samples', 'sampled_at'],
+        'control_power' => [RobotOperatingTimeSample::class, 'robot_operating_time_samples', 'sampled_at'],
         'operating' => [RobotOperatingTimeSample::class, 'robot_operating_time_samples', 'sampled_at'],
         'alarm_snapshot' => [RobotAlarmSnapshot::class, 'robot_alarm_snapshots', 'sampled_at'],
         'alarm_event' => [RobotAlarmEvent::class, 'robot_alarm_events', 'started_at'],
@@ -51,9 +53,14 @@ final class RobotLogController extends Controller
         'recommendation' => [MaintenanceRecommendation::class, 'maintenance_recommendations', 'generated_at'],
     ];
 
+    // Keep old telemetry bookmarks while exposing the two readings separately.
+    private const TYPE_ALIASES = ['telemetry' => ['servo_monitor', 'servo_torque']];
+
     // Avoid loading large collector raw_payload JSONB for every visible row.
     private const DETAIL_COLUMNS = [
-        'telemetry' => ['id', 'sequence', 'position_ok', 'position_status_code', 'position_pulses', 'torque_ok', 'torque_status_code', 'torque_unit', 'torque_axes'],
+        'servo_monitor' => ['id', 'sequence', 'position_ok', 'position_status_code', 'position_status_message', 'position_sampled_at', 'position_pulses'],
+        'servo_torque' => ['id', 'sequence', 'torque_ok', 'torque_status_code', 'torque_status_message', 'torque_sampled_at', 'torque_unit', 'torque_axes'],
+        'control_power' => ['id', 'time_type', 'read_ok', 'status_code', 'status_message', 'value_raw', 'value_seconds'],
         'operating' => ['id', 'time_type', 'read_ok', 'status_code', 'status_message', 'value_raw', 'value_seconds'],
         'alarm_snapshot' => ['id', 'read_ok', 'sdk_text', 'active_alarm_count', 'parsed_alarms', 'status_code', 'status_message'],
         'alarm_event' => ['id', 'event_key', 'status', 'alarm_code', 'alarm_name', 'severity', 'subcode', 'source', 'last_seen_at', 'cleared_at', 'details'],
@@ -98,6 +105,9 @@ final class RobotLogController extends Controller
         }
 
         $selected = $filters['types'] === [] ? array_keys(self::SOURCES) : $filters['types'];
+        // Each export category runs separately, but must keep the same counter
+        // partition as the combined web query when Control Power Time is selected.
+        $filters['separate_control_power'] = in_array('control_power', $selected, true);
         $name = 'RMS_Yaskawa_Log_Detail_' . CarbonImmutable::now(self::TZ)->format('Ymd_His') . '.xlsx';
 
         return response()->streamDownload(function () use ($filters, $selected): void {
@@ -170,11 +180,13 @@ final class RobotLogController extends Controller
     private function types(): array
     {
         return [
-            'telemetry' => 'Telemetry (position & torque)',
+            'servo_monitor' => 'Servo Monitor (posisi / pulse)',
+            'servo_torque' => 'Servo Monitor - Torq',
+            'control_power' => 'Control Power Time',
             'alarm_event' => 'Alarm events',
             'alarm_snapshot' => 'Alarm readings',
             'connection' => 'Connection events',
-            'operating' => 'Operating time',
+            'operating' => 'Operating Time (semua counter)',
             'health' => 'Equipment health',
             'maintenance' => 'Maintenance journal',
             'recommendation' => 'Maintenance recommendation',
@@ -183,6 +195,7 @@ final class RobotLogController extends Controller
 
     private function filters(Request $request): array
     {
+        $acceptedTypes = array_merge(array_keys(self::SOURCES), array_keys(self::TYPE_ALIASES));
         $v = $request->validate([
             // robot_ids[] is the new checkbox multi-select input.
             // robot_id is accepted for old links from the individual robot page.
@@ -191,9 +204,9 @@ final class RobotLogController extends Controller
             'robot_id' => ['nullable', 'integer', Rule::exists('robots', 'id')],
             // types[] is a multi-select. Empty/absent means all sources.
             // Legacy ?type=... links continue to work when types[] is absent.
-            'types' => ['sometimes', 'array', 'max:8'],
-            'types.*' => ['required', 'string', 'distinct', Rule::in(array_keys(self::SOURCES))],
-            'type' => ['nullable', 'string', Rule::in(array_merge(['all', 'events'], array_keys(self::SOURCES)))],
+            'types' => ['sometimes', 'array', 'max:'.count($acceptedTypes)],
+            'types.*' => ['required', 'string', 'distinct', Rule::in($acceptedTypes)],
+            'type' => ['nullable', 'string', Rule::in(array_merge(['all', 'events'], $acceptedTypes))],
             'preset' => ['nullable', Rule::in(['shift_pagi', 'shift_2', 'full_day', 'custom'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'date_format:Y-m-d\\TH:i'],
@@ -258,7 +271,7 @@ final class RobotLogController extends Controller
         }
 
         // Deterministic order for URLs, selected chips, and CSV links.
-        $selectedTypes = array_values(array_intersect(array_keys(self::SOURCES), $selectedTypes));
+        $selectedTypes = $this->normalizeTypes($selectedTypes);
 
         return [
             'robot_ids' => $selectedIds,
@@ -272,6 +285,19 @@ final class RobotLogController extends Controller
             'until_utc' => $toLocal->addMinute()->utc()->toIso8601String(),
             'per_page' => (int) ($v['per_page'] ?? 50),
         ];
+    }
+
+    /** Canonical IDs also prevent duplicate branches from legacy/new selections. */
+    private function normalizeTypes(array $types): array
+    {
+        $expanded = [];
+        foreach ($types as $type) {
+            foreach (self::TYPE_ALIASES[$type] ?? [$type] as $canonical) {
+                $expanded[] = $canonical;
+            }
+        }
+
+        return array_values(array_intersect(array_keys(self::SOURCES), $expanded));
     }
 
     private function queryParams(array $f): array
@@ -309,7 +335,8 @@ final class RobotLogController extends Controller
 
     private function query(array $f): Builder
     {
-        $selected = $f['types'] === [] ? array_keys(self::SOURCES) : $f['types'];
+        $selected = $this->normalizeTypes($f['types']);
+        $selected = $selected === [] ? array_keys(self::SOURCES) : $selected;
 
         $combined = null;
         foreach ($selected as $type) {
@@ -321,6 +348,13 @@ final class RobotLogController extends Controller
             $part = DB::table($table)
                 ->selectRaw("id AS record_id, robot_id, $utcTimestamp AS logged_at_utc, CAST(? AS varchar(32)) AS log_type", [$type])
                 ->whereRaw("$timestamp >= ? AND $timestamp < ?", [$f['from_utc'], $f['until_utc']]);
+            if ($type === 'control_power') {
+                $part->where('time_type', 'ControllerOnTime');
+            } elseif ($type === 'operating' && ($f['separate_control_power'] ?? in_array('control_power', $selected, true))) {
+                // A controller-power sample appears once when both categories are selected.
+                // Operating Time alone retains the legacy all-counter behavior.
+                $part->where('time_type', '<>', 'ControllerOnTime');
+            }
             if ($f['robot_ids'] !== []) {
                 $part->whereIntegerInRaw('robot_id', $f['robot_ids']);
             }
@@ -347,12 +381,25 @@ final class RobotLogController extends Controller
             ->whereIn('id', $index->pluck('robot_id')->unique()->all())
             ->get(['id', 'robot_code', 'name'])->keyBy('id');
 
-        // Fetch only one batch per data source, never one query per log row.
-        $records = [];
+        // Position and torque share physical telemetry rows. Load each model once
+        // per page/batch and present the requested readings without copying DB data.
+        $groups = [];
         foreach (self::SOURCES as $type => [$model]) {
             $ids = $index->where('log_type', $type)->pluck('record_id')->all();
-            if ($ids !== []) {
-                $records[$type] = $model::query()->whereIn('id', $ids)->get(self::DETAIL_COLUMNS[$type])->keyBy('id');
+            if ($ids === []) {
+                continue;
+            }
+            $groups[$model] ??= ['types' => [], 'ids' => [], 'columns' => []];
+            $groups[$model]['types'][] = $type;
+            $groups[$model]['ids'] = array_merge($groups[$model]['ids'], $ids);
+            $groups[$model]['columns'] = array_merge($groups[$model]['columns'], self::DETAIL_COLUMNS[$type]);
+        }
+        $records = [];
+        foreach ($groups as $model => $group) {
+            $rows = $model::query()->whereIn('id', array_values(array_unique($group['ids'])))
+                ->get(array_values(array_unique($group['columns'])))->keyBy('id');
+            foreach ($group['types'] as $type) {
+                $records[$type] = $rows;
             }
         }
 
@@ -389,27 +436,8 @@ final class RobotLogController extends Controller
     private function describe(string $type, object $r): array
     {
         return match ($type) {
-            'telemetry' => [
-                $r->position_ok && $r->torque_ok ? 'OK' : (($r->position_ok || $r->torque_ok) ? 'PARTIAL' : 'READ FAILED'),
-                $r->position_ok && $r->torque_ok ? 'ok' : (($r->position_ok || $r->torque_ok) ? 'warning' : 'danger'),
-                'Pembacaan Position Pulse dan Motor Torque',
-                [
-                    'sequence' => $r->sequence,
-                    'position_ok' => $r->position_ok,
-                    'position_status_code' => $r->position_status_code,
-                    'position_pulses' => $r->position_pulses,
-                    'torque_ok' => $r->torque_ok,
-                    'torque_status_code' => $r->torque_status_code,
-                    'torque_unit' => $r->torque_unit,
-                    'torque_axes' => $r->torque_axes,
-                ],
-            ],
-            'operating' => [
-                $r->read_ok ? 'READ OK' : 'READ FAILED',
-                $r->read_ok ? 'ok' : 'warning',
-                $r->time_type . ': ' . ($r->read_ok ? ($r->value_raw ?? '(nilai tidak ada)') : 'pembacaan gagal'),
-                ['time_type' => $r->time_type, 'read_ok' => $r->read_ok, 'raw_value' => $r->value_raw, 'value_seconds' => $r->value_seconds, 'status_code' => $r->status_code, 'message' => $r->status_message],
-            ],
+            'servo_monitor', 'servo_torque' => $this->describeServo($type, $r),
+            'control_power', 'operating' => $this->describeOperating($r),
             'alarm_snapshot' => [
                 $r->read_ok ? 'READ OK' : 'READ FAILED',
                 $r->read_ok ? 'ok' : 'warning',
@@ -453,11 +481,73 @@ final class RobotLogController extends Controller
         };
     }
 
+    /** Historical readings remain visible even when the current robot is stale. */
+    private function describeServo(string $type, object $r): array
+    {
+        $position = $type === 'servo_monitor';
+        $ok = (bool) ($position ? $r->position_ok : $r->torque_ok);
+        $axes = $position ? $r->position_pulses : $r->torque_axes;
+        $label = $position ? 'Servo Monitor' : 'Servo Monitor - Torq';
+        $details = $position ? [
+            'sequence' => $r->sequence,
+            'position_ok' => $ok,
+            'position_status_code' => $r->position_status_code,
+            'position_status_message' => $r->position_status_message,
+            'position_sampled_at' => $r->position_sampled_at?->toIso8601String(),
+            'position_pulses' => $ok && is_array($axes) ? $axes : null,
+            'position_unit' => 'pulse',
+        ] : [
+            'sequence' => $r->sequence,
+            'torque_ok' => $ok,
+            'torque_status_code' => $r->torque_status_code,
+            'torque_status_message' => $r->torque_status_message,
+            'torque_sampled_at' => $r->torque_sampled_at?->toIso8601String(),
+            'torque_unit' => $r->torque_unit,
+            'torque_axes' => $ok && is_array($axes) ? $axes : null,
+        ];
+        $values = [];
+        foreach (['S', 'L', 'U', 'R', 'B', 'T'] as $axis) {
+            $value = $ok && is_array($axes) ? ($axes[$axis] ?? null) : null;
+            $values[] = $axis.' '.(is_numeric($value) && is_finite((float) $value)
+                ? number_format((float) $value, $position ? 0 : 4, ',', '.') : '—');
+        }
+
+        return [$ok ? 'READ OK' : 'READ FAILED', $ok ? 'ok' : 'warning',
+            $label.' · '.($ok ? implode(' · ', $values) : 'Pembacaan gagal / tidak tersedia'), $details];
+    }
+
+    private function describeOperating(object $r): array
+    {
+        $label = match ($r->time_type) {
+            'ControllerOnTime' => 'Control Power Time',
+            'ServoPowerOnTimeRobot' => 'Servo Operating Hours',
+            'PlayBackTimeRobot' => 'Playback Time R1',
+            'MovingTimeRobot' => 'Moving Time R1',
+            default => (string) $r->time_type,
+        };
+        $seconds = $r->read_ok && is_numeric($r->value_seconds)
+            && is_finite((float) $r->value_seconds) && (float) $r->value_seconds >= 0
+            ? $r->value_seconds : null;
+        $value = ! $r->read_ok ? 'Pembacaan gagal'
+            : ($seconds !== null ? number_format((float) $seconds / 3600, 2, ',', '.').' h'
+                : ($r->value_raw ?? 'Durasi belum tersedia'));
+
+        return [$r->read_ok ? 'READ OK' : 'READ FAILED', $r->read_ok ? 'ok' : 'warning',
+            $label.': '.$value, [
+                'time_type' => $r->time_type, 'counter_label' => $label,
+                'read_ok' => (bool) $r->read_ok, 'raw_value' => $r->value_raw,
+                'value_seconds' => $seconds,
+                'hours' => $seconds === null ? null : (float) $seconds / 3600,
+                'status_code' => $r->status_code, 'message' => $r->status_message,
+            ]];
+    }
+
     private function safeCsv(string $text): string
     {
         // Prevent spreadsheet formula injection from robot or operator-supplied text.
         return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $text) ? "'" . $text : $text;
     }
 }
+
 
 

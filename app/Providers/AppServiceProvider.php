@@ -4,20 +4,20 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Database\RmsSqlServerConnection;
-use Illuminate\Database\Connection;
-use App\Models\MaintenanceRecommendation;
 use App\Models\RobotAlarmEvent;
 use App\Models\RobotAlarmSnapshot;
-use App\Models\RobotConnectionEvent;
-use App\Models\RobotHealthAssessment;
-use App\Models\RobotOperatingTimeSample;
-use App\Models\RobotReducerMeasurement;
-use App\Models\RobotTelemetrySample;
-use App\Models\RobotThresholdEvent;
 use App\Models\RobotThresholdRule;
 use App\Observers\RmsLiveObserver;
+use App\Models\RobotThresholdEvent;
+use Illuminate\Database\Connection;
+use App\Models\RobotConnectionEvent;
+use App\Models\RobotTelemetrySample;
+use App\Models\RobotHealthAssessment;
+use App\Models\RobotReducerMeasurement;
 use Illuminate\Support\ServiceProvider;
+use App\Database\RmsSqlServerConnection;
+use App\Models\RobotOperatingTimeSample;
+use App\Models\MaintenanceRecommendation;
 
 class AppServiceProvider extends ServiceProvider
 {

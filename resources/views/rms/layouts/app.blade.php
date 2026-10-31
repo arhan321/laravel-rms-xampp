@@ -18,7 +18,7 @@
     @vite('resources/js/app.js')
   @endif
   @if(request()->routeIs('rms.logs.*'))
-    <script src="{{ asset('rms/js/logs.js') }}?v=20261015-2315" defer></script>
+    <script src="{{ asset('rms/js/logs.js') }}?v=20261030-servo-history-1" defer></script>
   @endif
 </head>
 <body>
@@ -82,3 +82,4 @@
 </div>
 </body>
 </html>
+
