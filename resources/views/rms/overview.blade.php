@@ -62,8 +62,10 @@
       <div class="rms-p-robot-info"><div class="rms-p-robot-title"><strong>{{ $robot['code'] }}</strong><span data-rms-p-health>{{ strtoupper($robot['health']) }}</span></div><span class="rms-p-robot-name" title="{{ $robot['name'] }}">{{ $robot['name'] }}</span><div class="rms-p-axes" aria-label="Status torque per axis">@foreach($robot['axes'] as $axis=>$state)<span data-rms-plant-axis="{{ $axis }}" data-axis-state="{{ $state }}" title="{{ $axis }}: {{ $state }}">{{ $axis }}</span>@endforeach</div><div class="rms-p-robot-state"><span data-rms-p-connection>{{ strtoupper($robot['connectivity']) }}</span><span data-rms-p-servo>{{ $robot['servo'] }}</span></div><div class="rms-p-robot-pm"><span data-rms-p-pm>{{ $robot['open_recommendations'] }} rekomendasi open</span><span data-rms-p-hours>{{ $robot['operating_hours'] }}</span></div></div>
      </a>
     @endforeach
-    <div class="rms-p-cell"><img class="rms-yaskawa-image" src="{{ asset('rms/images/yaskawa-robot.png') }}" alt="Ilustrasi robot Yaskawa" width="420" height="180" loading="lazy"><span>ILUSTRASI ROBOT · {{ $group['label'] }}</span></div>
-    @if(count($group['robots']) === 0)<p class="rms-p-empty">Belum ada robot terdaftar di kelompok ini.</p>@endif
+    @if(count($group['robots']) === 0)
+     <div class="rms-p-cell"><img class="rms-yaskawa-image" src="{{ asset('rms/images/yaskawa-robot.png') }}" alt="Ilustrasi robot Yaskawa" width="420" height="180" loading="lazy"><span>ILUSTRASI ROBOT · {{ $group['label'] }}</span></div>
+     <p class="rms-p-empty">Belum ada robot terdaftar di kelompok ini.</p>
+    @endif
    </div>
    <div class="rms-p-line-footer"><span>{{ $group['registered'] }} robot terdaftar @if($group['planned_robots'] !== null) / {{ $group['planned_robots'] }} rencana @endif</span><a href="{{ route('rms.robots.index', ['group'=>$group['key']]) }}">Lihat grup →</a></div>
   </section>
