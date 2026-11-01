@@ -12,6 +12,7 @@ class Robot extends Model
 {
     protected $fillable = [
         'controller_id',
+        'robot_group_id',
         'robot_code',
         'name',
         'model',
@@ -30,6 +31,7 @@ class Robot extends Model
     {
         return [
             'controller_id' => 'integer',
+            'robot_group_id' => 'integer',
             'axis_count' => 'integer',
             'is_active' => 'boolean',
             'metadata' => 'array',
@@ -39,6 +41,11 @@ class Robot extends Model
     public function controller(): BelongsTo
     {
         return $this->belongsTo(RobotController::class);
+    }
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(RobotGroup::class, 'robot_group_id');
     }
 
     public function telemetrySamples(): HasMany
@@ -86,4 +93,3 @@ class Robot extends Model
         return $this->hasMany(MaintenanceRecommendation::class);
     }
 }
-

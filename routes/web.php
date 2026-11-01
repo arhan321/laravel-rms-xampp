@@ -40,33 +40,35 @@
 |--------------------------------------------------------------------------
 */
 
+use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Web\AlarmController;
 // ============================================================
 // RMS WEB CONTROLLERS
 // ============================================================
 
-use App\Http\Controllers\Web\AnalyticsController;
+use App\Http\Controllers\Web\RobotController;
 use App\Http\Controllers\Web\CockpitController;
-use App\Http\Controllers\Web\CockpitLiveController;
-use App\Http\Controllers\Web\ConnectionController;
-use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\FeatureController;
+use App\Http\Controllers\Web\RmsLiveController;
 use App\Http\Controllers\Web\HardwareController;
-use App\Http\Controllers\Web\HealthIntelligenceController;
+use App\Http\Controllers\Web\RobotLogController;
+use App\Http\Controllers\Web\AnalyticsController;
+use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\ConnectionController;
+use App\Http\Controllers\Web\RobotGroupController;
+use App\Http\Controllers\Web\CockpitLiveController;
 use App\Http\Controllers\Web\MaintenanceController;
 use App\Http\Controllers\Web\NotificationController;
-use App\Http\Controllers\Web\RecommendationController;
-use App\Http\Controllers\Web\RmsConfigurationController;
-use App\Http\Controllers\Web\RmsLiveController;
-use App\Http\Controllers\Web\RobotController;
+use App\Http\Controllers\Web\ServoCurrentController;
+use App\Http\Controllers\Web\RobotIdentityController;
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
 // ============================================================
 
-use App\Http\Controllers\Web\RobotIdentityController;
-use App\Http\Controllers\Web\RobotLogController;
-use App\Http\Controllers\Web\ServoCurrentController;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Web\RecommendationController;
+use App\Http\Controllers\Web\RmsConfigurationController;
+use App\Http\Controllers\Web\HealthIntelligenceController;
+use App\Http\Controllers\Web\AlarmCountermeasureController;
 
 // ============================================================
 // 1. HOME
@@ -95,6 +97,13 @@ Route::prefix('rms')
         // ====================================================
         // ROBOT MONITORING
         // ====================================================
+
+        Route::get('/robot-groups', [RobotGroupController::class, 'index'])->name('robot-groups.index');
+        Route::get('/robot-groups/create', [RobotGroupController::class, 'create'])->name('robot-groups.create');
+        Route::post('/robot-groups', [RobotGroupController::class, 'store'])->middleware('throttle:20,1')->name('robot-groups.store');
+        Route::get('/robot-groups/{robotGroup}/edit', [RobotGroupController::class, 'edit'])->whereNumber('robotGroup')->name('robot-groups.edit');
+        Route::put('/robot-groups/{robotGroup}', [RobotGroupController::class, 'update'])->whereNumber('robotGroup')->middleware('throttle:20,1')->name('robot-groups.update');
+        Route::delete('/robot-groups/{robotGroup}', [RobotGroupController::class, 'destroy'])->whereNumber('robotGroup')->middleware('throttle:10,1')->name('robot-groups.destroy');
 
         Route::get('/robots/create', [
             RobotController::class,
@@ -241,6 +250,19 @@ Route::prefix('rms')
             AlarmController::class,
             'index',
         ])->name('alarms.index');
+
+        Route::prefix('alarms/{kind}/{record}/countermeasures')
+            ->where(['kind' => 'history|event|snapshot', 'record' => '[0-9]+'])
+            ->name('alarms.countermeasures.')
+            ->group(function (): void {
+                Route::get('/', [AlarmCountermeasureController::class, 'show'])->name('show');
+                Route::post('/', [AlarmCountermeasureController::class, 'store'])
+                    ->middleware('throttle:20,1')->name('store');
+                Route::get('/{countermeasure}/edit', [AlarmCountermeasureController::class, 'edit'])
+                    ->whereNumber('countermeasure')->name('edit');
+                Route::put('/{countermeasure}', [AlarmCountermeasureController::class, 'update'])
+                    ->whereNumber('countermeasure')->middleware('throttle:20,1')->name('update');
+            });
 
         // ====================================================
         // PREVENTIVE MAINTENANCE

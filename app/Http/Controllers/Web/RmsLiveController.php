@@ -8,6 +8,8 @@ use App\Models\MaintenanceRecommendation;
 use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
 use App\Models\RobotThresholdRule;
+use App\Services\Rms\PlantOverview;
+use App\Services\Rms\RobotLineGroups;
 use App\Services\Rms\TelemetryHistory;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
@@ -16,15 +18,16 @@ use Illuminate\Http\Request;
 /** Same-origin read-only snapshot. Never calls YMConnect or robot commands. */
 final class RmsLiveController extends BaseRmsWebController
 {
-    public function snapshot(Request $request, TelemetryHistory $history): JsonResponse
+    public function snapshot(Request $request, TelemetryHistory $history, RobotLineGroups $lineGroups): JsonResponse
     {
         abort_unless(config('rms_live.enabled', false), 404);
         $values = $request->validate([
             'robot_id' => ['required_if:include_history,1', 'integer', 'min:1', 'exists:robots,id'],
             'include_history' => ['sometimes', 'boolean'],
+            'include_overview' => ['sometimes', 'boolean'],
         ]);
         $registry = isset($values['robot_id'])
-            ? new EloquentCollection([Robot::query()->with('controller')->findOrFail($values['robot_id'])])
+            ? new EloquentCollection([Robot::query()->with(['controller', 'group'])->findOrFail($values['robot_id'])])
             : $this->robotRegistry();
         $cards = $this->robotCards($registry);
         $now = now();
@@ -33,7 +36,7 @@ final class RmsLiveController extends BaseRmsWebController
             ->whereIn('robot_id', $registry->pluck('id')->all())
             ->get()
             ->groupBy('robot_id');
-        $robots = $cards->map(function (array $card) use ($now, $staleSeconds, $ruleRows): array {
+        $robots = $cards->map(function (array $card) use ($now, $staleSeconds, $ruleRows, $lineGroups): array {
             $robot = $card['robot'];
             $sample = $card['telemetry'];
             $last = $card['health_assessment'];
@@ -70,6 +73,7 @@ final class RmsLiveController extends BaseRmsWebController
             return [
                 'id' => $robot->id,
                 'code' => $robot->robot_code,
+                'monitor_group_key' => $lineGroups->keyForRobot($robot),
                 'is_demo' => str_starts_with($robot->robot_code, 'DEMO_') || str_contains($robot->name, '[DEMO]') || data_get($sample?->raw_payload, 'simulated') === true,
                 'connectivity' => $card['connectivity'],
                 'last_sampled_at' => $sample?->sampled_at?->toIso8601String(),
@@ -111,6 +115,8 @@ final class RmsLiveController extends BaseRmsWebController
                 'open_recommendations' => MaintenanceRecommendation::query()->whereIn('robot_id', $robotIds)->where('status', 'open')->count(),
             ],
             'robots' => $robots,
+            'plant_overview' => ($values['include_overview'] ?? false)
+                ? app(PlantOverview::class)->forCards($cards, $lineGroups->groups($cards), $ruleRows) : null,
             'telemetry_history' => ($values['include_history'] ?? false) ? [
                 'robot_id' => $registry->first()->id,
                 'limit' => TelemetryHistory::LIMIT,

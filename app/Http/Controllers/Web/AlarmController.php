@@ -8,6 +8,7 @@ use App\Models\Robot;
 use App\Models\RobotAlarmEvent;
 use App\Models\RobotAlarmHistoryEntry;
 use App\Models\RobotAlarmSnapshot;
+use App\Services\Rms\AlarmCountermeasureContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
@@ -17,7 +18,7 @@ use Illuminate\Http\Request;
  */
 class AlarmController extends BaseRmsWebController
 {
-    public function index(Request $request): View
+    public function index(Request $request, AlarmCountermeasureContext $countermeasureContext): View
     {
         $filter = $request->validate([
             'robot_ids' => ['sometimes', 'array', 'max:100'],
@@ -33,7 +34,7 @@ class AlarmController extends BaseRmsWebController
         $selectedRobotIds = [];
         if ($request->exists('robot_ids')) {
             $selectedRobotIds = array_values(array_unique(array_map('intval', $filter['robot_ids'] ?? [])));
-        } elseif (!empty($filter['robot_id'])) {
+        } elseif (! empty($filter['robot_id'])) {
             $selectedRobotIds = [(int) $filter['robot_id']];
         }
         $filter['robot_ids'] = $selectedRobotIds;
@@ -98,6 +99,8 @@ class AlarmController extends BaseRmsWebController
             $historyQuery->where('category', $filter['category']);
         }
 
+        $snapshots = $snapshotsQuery->orderByDesc('sampled_at')->orderByDesc('id')->limit(30)->get();
+
         return view('rms.alarms.index', [
             'title' => 'Alarm Center',
             'robots' => Robot::query()->orderBy('robot_code')->get(['id', 'robot_code', 'name']),
@@ -106,10 +109,10 @@ class AlarmController extends BaseRmsWebController
                 ->orderByDesc('id')
                 ->paginate(20, ['*'], 'event_page')
                 ->withQueryString(),
-            'snapshots' => $snapshotsQuery
-                ->orderByDesc('sampled_at')
-                ->orderByDesc('id')
-                ->limit(30)->get(),
+            'snapshots' => $snapshots,
+            'snapshotCountermeasureAlarms' => $snapshots->mapWithKeys(
+                fn (RobotAlarmSnapshot $snapshot): array => [$snapshot->id => $countermeasureContext->snapshotAlarms($snapshot)]
+            ),
             'historyEntries' => $historyQuery->orderByDesc('first_observed_at')->orderByDesc('id')
                 ->paginate(20, ['*'], 'history_page')->withQueryString(),
             // Overall active count within chosen robots, regardless of status/search filter.

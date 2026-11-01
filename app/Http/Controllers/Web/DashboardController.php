@@ -7,13 +7,16 @@ namespace App\Http\Controllers\Web;
 use App\Models\MaintenancePlan;
 use App\Models\MaintenanceRecommendation;
 use App\Models\RobotAlarmEvent;
+use App\Services\Rms\PlantOverview;
+use App\Services\Rms\RobotLineGroups;
 use Illuminate\Contracts\View\View;
 
 class DashboardController extends BaseRmsWebController
 {
-    public function index(): View
+    public function index(RobotLineGroups $lineGroups, PlantOverview $plantOverview): View
     {
         $robots = $this->robotCards($this->robotRegistry());
+        $groups = $lineGroups->groups($robots);
         $summary = [
             'total_robots' => $robots->count(),
             'active_robots' => $robots->filter(fn (array $row): bool => $row['robot']->is_active)->count(),
@@ -48,6 +51,10 @@ class DashboardController extends BaseRmsWebController
         return view('rms.overview', [
             'title' => 'Line Overview',
             'robots' => $robots,
+            'groups' => $groups,
+            'plantOverview' => $plantOverview->forCards($robots, $groups),
+            'fleetSummary' => $lineGroups->summary($robots),
+            'groupWritesEnabled' => (bool) config('rms_robot_group_management.writes_enabled', false),
             'summary' => $summary,
             'attention' => $attention,
             'asOf' => now(),

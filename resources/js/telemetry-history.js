@@ -51,3 +51,4 @@ export function syncTelemetryHistory(payload, root = document) {
     const count = section.querySelector('[data-rms-history-count]');
     if (count) count.textContent = `${rows.length} record`;
 }
+

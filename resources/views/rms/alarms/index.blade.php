@@ -127,7 +127,7 @@
   @else
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Robot</th><th>Started at (WIB)</th><th>Code</th><th>Alarm</th><th>Severity</th><th>Status</th></tr></thead>
+        <thead><tr><th>Robot</th><th>Started at (WIB)</th><th>Code</th><th>Alarm</th><th>Severity</th><th>Status</th><th>Penanganan</th></tr></thead>
         <tbody>
           @foreach($events as $e)
             <tr>
@@ -137,6 +137,7 @@
               <td>{{ $e->alarm_name ?: 'Belum diketahui' }}</td>
               <td>{{ $e->severity ?: '—' }}</td>
               <td><span class="badge rms-badge {{ $e->status }}">{{ strtoupper($e->status) }}</span></td>
+              <td>@if($e->alarm_code !== null && $e->alarm_code !== '')<a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'event', 'record' => $e->id]) }}">Lihat penanganan</a>@else — @endif</td>
             </tr>
           @endforeach
         </tbody>
@@ -146,12 +147,13 @@
   @endif
 </section>
 
+<div class="rms-note rms-section-spaced">Klik <strong>Lihat / isi penanganan</strong> untuk membuka referensi Yaskawa dan menambahkan pengalaman tim jalur. Panduan tersimpan ditampilkan kembali untuk model controller, kode alarm, dan cakupan subcode yang sesuai.</div>
 <section class="panel rms-section-spaced" id="controller-alarm-history">
   <div class="panel-header"><div><h2>YMConnect Controller Alarm History</h2><p>Kategori dibaca langsung dari histori controller; waktu controller disimpan sebagai teks asli.</p></div><span class="rms-muted-small">{{ $historyEntries->total() }} record unik</span></div>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>Robot</th><th>Kategori</th><th>Kode / subcode</th><th>Nama</th><th>Waktu controller (raw)</th><th>Pertama terambil (WIB)</th></tr></thead><tbody>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Robot</th><th>Kategori</th><th>Kode / subcode</th><th>Nama</th><th>Waktu controller (raw)</th><th>Pertama terambil (WIB)</th><th>Penanganan</th></tr></thead><tbody>
     @forelse($historyEntries as $entry)
-      <tr><td>{{ $entry->robot?->robot_code ?? '—' }}</td><td>{{ $entry->category }}</td><td>{{ $entry->alarm_code }} / {{ $entry->subcode ?? '—' }}</td><td>{{ $entry->alarm_name }}</td><td>{{ $entry->controller_time_raw }}</td><td>{{ $entry->first_observed_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s') }}</td></tr>
-    @empty<tr><td colspan="6">Belum ada entri histori yang dapat diidentifikasi. Cek status pembacaan kategori pada snapshot raw.</td></tr>@endforelse
+      <tr><td>{{ $entry->robot?->robot_code ?? '—' }}</td><td>{{ $entry->category }}</td><td>{{ $entry->alarm_code }} / {{ $entry->subcode ?? '—' }}</td><td>{{ $entry->alarm_name }}</td><td>{{ $entry->controller_time_raw }}</td><td>{{ $entry->first_observed_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s') }}</td><td><a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'history', 'record' => $entry->id]) }}">Lihat / isi penanganan</a></td></tr>
+    @empty<tr><td colspan="7">Belum ada entri histori yang dapat diidentifikasi. Cek status pembacaan kategori pada snapshot raw.</td></tr>@endforelse
   </tbody></table></div>
   <div class="rms-pagination">{{ $historyEntries->links() }}</div>
   <p class="rms-muted-small">Waktu controller belum disinkronkan dengan waktu server. Job, line, step, dan mode saat kejadian tidak disediakan dalam payload histori YMConnect saat ini; jangan menyamakan data terbaru dengan konteks kejadian lama.</p>
@@ -161,7 +163,7 @@
   <div class="panel-header"><div><h2>Active Alarm Reading History</h2><p>Untuk mengidentifikasi Controller Alarm dan gangguan pembacaan</p></div></div>
   <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>Robot</th><th>Sample (WIB)</th><th>Read Status</th><th>Active Count</th><th>Controller Alarm Text</th></tr></thead>
+      <thead><tr><th>Robot</th><th>Sample (WIB)</th><th>Read Status</th><th>Active Count</th><th>Controller Alarm Text</th><th>Penanganan</th></tr></thead>
       <tbody>
         @forelse($snapshots as $s)
           <tr>
@@ -170,9 +172,14 @@
             <td>@include('rms.partials.read-status', ['ok'=>$s->read_ok])</td>
             <td>{{ $s->active_alarm_count ?? 'unknown' }}</td>
             <td class="rms-raw">{{ \Illuminate\Support\Str::limit($s->sdk_text ?: '—', 150) }}</td>
+            <td>
+              @forelse($snapshotCountermeasureAlarms->get($s->id, []) as $alarmIndex => $alarm)
+                <a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'snapshot', 'record' => $s->id, 'alarm_index' => $alarmIndex]) }}">{{ $alarm['alarm_code'] }} / {{ $alarm['subcode'] ?? '—' }} · Penanganan</a>
+              @empty<span class="rms-muted-small">Tidak ada alarm teridentifikasi</span>@endforelse
+            </td>
           </tr>
         @empty
-          <tr><td colspan="5">Belum ada riwayat pembacaan alarm untuk pilihan robot tersebut</td></tr>
+          <tr><td colspan="6">Belum ada riwayat pembacaan alarm untuk pilihan robot tersebut</td></tr>
         @endforelse
       </tbody>
     </table>
@@ -235,3 +242,4 @@
 })();
 </script>
 @endsection
+

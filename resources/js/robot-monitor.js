@@ -131,3 +131,4 @@ export function invalidateInitialMonitor(root = document) {
         [2, 3].forEach(index => { if (row.children[index]) row.children[index].textContent = '—'; });
     });
 }
+

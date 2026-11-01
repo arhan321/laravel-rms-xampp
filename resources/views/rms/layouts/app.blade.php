@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ asset('rms/css/logs.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/live.css') }}">
   <link rel="stylesheet" href="{{ asset('rms/css/robot-monitor.css') }}?v=20261022">
+  <link rel="stylesheet" href="{{ asset('rms/css/yaskawa-robot-image.css') }}?v=20261101-1">
   @stack('styles')
   <script src="{{ asset('rms/js/dashboard.js') }}?v=20261015-2315" defer></script>
   <script src="{{ asset('rms/js/rms-clock.js') }}?v=20261015-2315" defer></script>
@@ -21,7 +22,7 @@
     <script src="{{ asset('rms/js/logs.js') }}?v=20261030-servo-history-1" defer></script>
   @endif
 </head>
-<body>
+<body class="@yield('body_class')">
 <a href="#main" class="skip-link">Lewati ke konten</a>
 @php
   $navigation = [

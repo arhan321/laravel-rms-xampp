@@ -1,0 +1,48 @@
+/* One supplied robot image across RMS; retain the shared sidebar and page theme. */
+.rms-yaskawa-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+    object-position: center;
+}
+.rms-robot-icon > .rms-yaskawa-image {
+    width: 100%;
+    height: 100%;
+}
+.rms-line-scene > .rms-yaskawa-image {
+    width: 100%;
+    height: 140px;
+    max-height: none;
+}
+.rms-p-fleet > .rms-yaskawa-image {
+    width: 96px;
+    height: 90px;
+    top: 14px;
+    right: 10px;
+    opacity: 1;
+    filter: none;
+}
+.rms-p-robot > .rms-yaskawa-image {
+    width: 58px;
+    height: 72px;
+    flex: 0 0 58px;
+    filter: none;
+}
+.rms-p-cell > .rms-yaskawa-image {
+    width: 100%;
+    max-width: 320px;
+    height: 190px;
+    max-height: none;
+    opacity: 1;
+}
+.cp-robot-illustration > .rms-yaskawa-cockpit-image {
+    width: 100%;
+    height: 145px;
+}
+@media (max-width: 780px) {
+    .rms-p-fleet > .rms-yaskawa-image {
+        opacity: .15;
+        right: 14px;
+    }
+}

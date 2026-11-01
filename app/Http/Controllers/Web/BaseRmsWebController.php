@@ -27,7 +27,7 @@ abstract class BaseRmsWebController extends Controller
     protected function robotRegistry(): EloquentCollection
     {
         return Robot::query()
-            ->with('controller')
+            ->with(['controller', 'group'])
             ->orderBy('robot_code')
             ->get();
     }

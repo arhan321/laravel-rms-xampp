@@ -39,7 +39,8 @@
       <label class="field"><span>Date (nameplate) *</span><input class="input" type="month" name="nameplate_date" value="{{ old('nameplate_date') }}" required></label>
       <label class="field"><span>Control group *</span><input class="input" name="control_group" value="{{ old('control_group', 'R1') }}" pattern="R[1-9][0-9]*" required><small>Contoh: R1, R2, R3.</small></label>
       <label class="field"><span>Jumlah axis *</span><input class="input" type="number" name="axis_count" value="{{ old('axis_count', 6) }}" min="1" max="16" required></label>
-      <label class="field"><span>Line name</span><input class="input" name="line_name" value="{{ old('line_name') }}" placeholder="Welding Line 1"></label>
+      @include('rms.robots.partials.group-select', ['currentGroupId' => $defaultGroupId ?? null])
+      <label class="field"><span>Line proses (opsional)</span><input class="input" name="line_name" maxlength="100" value="{{ old('line_name', $defaultLineName ?? '') }}" placeholder="Welding 2 / DOJO"><small>Informasi proses. Penempatan robot mengikuti pilihan Grup robot.</small></label>
       <label class="field"><span>Station name</span><input class="input" name="station_name" value="{{ old('station_name') }}" placeholder="DOJO"></label>
       <label class="field field-wide"><span>Catatan</span><textarea class="input" name="notes" rows="3" placeholder="Keterangan tambahan controller atau jaringan">{{ old('notes') }}</textarea></label>
     </div>
@@ -47,5 +48,7 @@
 
   <div class="registry-actions"><a href="{{ route('rms.robots.index') }}" class="btn">Batal</a><button type="submit" class="btn primary">Simpan robot</button></div>
 </form>
+
 <script src="{{ asset('rms/js/robot-registry.js') }}?v=20261015-2315" defer></script>
 @endsection
+

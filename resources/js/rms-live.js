@@ -8,6 +8,8 @@ import {
 } from './robot-monitor.js';
 
 import { syncTelemetryHistory } from './telemetry-history.js';
+import { syncRobotLineGroups, invalidateRobotLineGroups } from './robot-line-groups.js';
+import { syncPlantOverview, invalidatePlantOverview } from './plant-overview.js';
 
 const one = (selector, root = document) => root.querySelector(selector);
 const all = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -134,6 +136,7 @@ function updateOverview(payload) {
     }
 
     updateCards(robots, 'overview');
+    if (!syncPlantOverview(payload)) syncRobotLineGroups(payload);
 }
 
 function changeStat(stat, value) {
@@ -189,6 +192,7 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
     };
 
     const fetchUrl = new URL(endpoint, location.origin);
+    if (page === 'overview') fetchUrl.searchParams.set('include_overview', '1');
 
     if (robotId) {
         fetchUrl.searchParams.set('robot_id', String(robotId));
@@ -260,6 +264,7 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
 
             if (page === 'monitor') {
                 updateCards(data.robots, 'monitor');
+                syncRobotLineGroups(data);
             }
 
             if (page === 'detail' && data.robots.length) {
@@ -282,6 +287,7 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
 
             if (!latest) {
                 invalidateInitialMonitor(root);
+                invalidateRobotLineGroups(); invalidatePlantOverview();
             }
 
             status('MONITORING DATA UNAVAILABLE · RETRYING', 'error');
@@ -321,6 +327,7 @@ export function initRmsLive(Echo, sharedEcho = undefined) {
 
             if (page === 'monitor') {
                 updateCards(latest.robots, page);
+                syncRobotLineGroups(latest);
             }
 
             if (page === 'detail') {

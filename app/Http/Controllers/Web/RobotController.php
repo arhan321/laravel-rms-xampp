@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Models\Robot;
 use App\Models\RobotController as ControllerModel;
+use App\Models\RobotGroup;
+use App\Services\Rms\RobotLineGroups;
 use App\Services\Rms\RobotReachabilityProbe;
 use App\Services\Rms\ServoCurrentMonitor;
 use App\Services\Rms\TelemetryHistory;
@@ -18,11 +20,20 @@ use Illuminate\Support\Facades\DB;
 
 class RobotController extends BaseRmsWebController
 {
-    public function create(): View
+    public function create(Request $request): View
     {
+        $values = $request->validate([
+            'line_name' => ['nullable', 'string', 'max:100'],
+            'robot_group_id' => ['nullable', 'integer', 'exists:robot_groups,id'],
+        ]);
+
         return view('rms.robots.create', [
             'title' => 'Tambah Robot',
             'probePorts' => config('rms.robot_probe.udp_ports', [10040, 10041]),
+            'defaultLineName' => $values['line_name'] ?? '',
+            'defaultGroupId' => $values['robot_group_id'] ?? null,
+            'groupOptions' => RobotGroup::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'groupWritesEnabled' => (bool) config('rms_robot_group_management.writes_enabled', false),
         ]);
     }
 
@@ -52,10 +63,14 @@ class RobotController extends BaseRmsWebController
             'control_group' => ['required', 'string', 'max:8', 'regex:/^R[1-9][0-9]*$/i'],
             'axis_count' => ['required', 'integer', 'between:1,16'],
             'line_name' => ['nullable', 'string', 'max:100'],
+            'robot_group_id' => ['nullable', 'integer', 'exists:robot_groups,id'],
             'station_name' => ['nullable', 'string', 'max:100'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        if (! empty($data['robot_group_id'])) {
+            abort_unless(config('rms_robot_group_management.writes_enabled', false), 403, 'Pengelolaan grup robot sedang dinonaktifkan.');
+        }
         $probeResult = $probe->probe($data['ip_address']);
         if (! $probeResult['ok']) {
             return back()->withErrors(['ip_address' => $probeResult['message']])->withInput();
@@ -101,6 +116,7 @@ class RobotController extends BaseRmsWebController
                 'control_group' => $data['control_group'],
                 'axis_count' => $data['axis_count'],
                 'line_name' => $data['line_name'] ?? null,
+                'robot_group_id' => $data['robot_group_id'] ?? null,
                 'station_name' => $data['station_name'] ?? null,
                 'is_active' => true,
             ]);
@@ -169,22 +185,37 @@ class RobotController extends BaseRmsWebController
             ->with('success', "Robot {$robotName} dan seluruh histori terkait berhasil dihapus.");
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, RobotLineGroups $lineGroups): View
     {
         $validated = $request->validate([
             'connectivity' => ['sometimes', 'in:all,connected,offline,stale,unknown'],
+            'group' => ['sometimes', 'string', 'max:80'],
         ]);
         $filter = $validated['connectivity'] ?? 'all';
-        $rows = $this->robotCards($this->robotRegistry());
-        if ($filter !== 'all') {
-            $rows = $rows->where('connectivity', $filter)->values();
+        $rows = $this->robotCards($this->robotRegistry())->map(function (array $card) use ($lineGroups): array {
+            return [...$card, 'monitor_group_key' => $lineGroups->keyForRobot($card['robot'])];
+        });
+        $groups = $lineGroups->groups($rows);
+        $selectedKey = $validated['group'] ?? ($request->has('connectivity') ? 'all' : null);
+        $selectedGroup = $selectedKey === 'all'
+            ? ['id' => null, 'key' => 'all', 'label' => 'Semua robot', 'area_label' => null, 'description' => null, 'planned_robots' => null, 'pilot' => false, ...$lineGroups->summary($rows)]
+            : $groups->firstWhere('key', $selectedKey);
+        if ($selectedKey !== null) {
+            abort_unless($selectedGroup !== null, 404, 'Kelompok robot tidak ditemukan.');
         }
+        $selectedRows = $selectedKey === null ? collect() : ($selectedKey === 'all'
+            ? $rows : $rows->where('monitor_group_key', $selectedKey)->values());
 
         return view('rms.robots.index', [
             'title' => 'Robot Monitor',
-            'robots' => $rows,
+            'robots' => $selectedRows,
+            'groups' => $groups,
+            'fleetSummary' => $lineGroups->summary($rows),
+            'selectedGroup' => $selectedGroup,
+            'selectedGroupKey' => $selectedKey,
+            'groupWritesEnabled' => (bool) config('rms_robot_group_management.writes_enabled', false),
             'connectivityFilter' => $filter,
-            'dataSource' => 'postgresql',
+            'dataSource' => config('database.default'),
             'success' => session('success'),
         ]);
     }

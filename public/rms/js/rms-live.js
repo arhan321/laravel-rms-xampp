@@ -1,6 +1,8 @@
 'use strict';
 
 import { updateRobotCard, updateRobotDetail, expireRobotSnapshot, invalidateInitialMonitor } from './robot-monitor.js';
+import { syncRobotLineGroups, invalidateRobotLineGroups } from './robot-line-groups.js';
+import { syncPlantOverview, invalidatePlantOverview } from './plant-overview.js';
 
 const AXES = ['S','L','U','R','B','T'];
 const STATUS_CLASSES = ['connected','offline','stale','unknown','healthy','warning','critical'];
@@ -83,6 +85,7 @@ function updateOverview(payload) {
     if (statValues[2]) changeStat(statValues[2], summary.identified_active_alarms);
     if (statValues[3]) changeStat(statValues[3], summary.open_recommendations);
     updateCards(robots, 'overview');
+    if (!syncPlantOverview(payload)) syncRobotLineGroups(payload);
 }
 function changeStat(stat, value) {
     const firstText = [...stat.childNodes].find(n => n.nodeType === Node.TEXT_NODE);
@@ -165,6 +168,7 @@ export function initRmsLive(Echo) {
     let serverOffset=0;
     const status = (txt,kind) => {if(indicator){indicator.textContent=txt;indicator.dataset.state=kind;}};
     const fetchUrl=new URL(endpoint,location.origin);
+    if(page==='overview') fetchUrl.searchParams.set('include_overview','1');
     if(robotId) fetchUrl.searchParams.set('robot_id',String(robotId));
     async function reconcile() {
         if(inflight || document.hidden) return;
@@ -180,7 +184,7 @@ export function initRmsLive(Echo) {
             serverOffset=Date.parse(data.server_time)-Date.now();
             lastFetch=Date.now();latest=data;
             if(page==='overview') updateOverview(data);
-            if(page==='monitor') updateCards(data.robots,'monitor');
+            if(page==='monitor') { updateCards(data.robots,'monitor'); syncRobotLineGroups(data); }
             if((page==='detail'||page==='cockpit') && data.robots.length){
                 const robot=data.robots[0];
                 if(page==='detail') {updateDetail(robot);lastHistory=addHistoryRow(robot,lastHistory);}
@@ -191,7 +195,7 @@ export function initRmsLive(Echo) {
                 (demo?'AUTO UPDATE ACTIVE · DEMO':'AUTO UPDATE ACTIVE'),connected?'connected':'fallback');
         } catch(err) {
             console.warn('[RMS Live] Monitoring update failed:', err);
-            if (!latest) invalidateInitialMonitor(root);
+            if (!latest) { invalidateInitialMonitor(root); invalidateRobotLineGroups(); invalidatePlantOverview(); }
             status('MONITORING DATA UNAVAILABLE · RETRYING','error');
         } finally {inflight=false;}
     }
@@ -206,7 +210,7 @@ export function initRmsLive(Echo) {
             latest.summary.connected=latest.robots.filter(r=>r.connectivity==='connected').length;
             latest.summary.stale_or_unknown=latest.robots.filter(r=>['stale','unknown'].includes(r.connectivity)).length;
             if(page==='overview')updateOverview(latest);
-            if(page==='monitor')updateCards(latest.robots,page);
+            if(page==='monitor') { updateCards(latest.robots,page); syncRobotLineGroups(latest); }
             if(page==='detail')updateDetail(latest.robots[0]);
             if(page==='cockpit')updateCockpit(latest.robots[0]);
             if (latest.robots.some(r => r.connectivity === 'stale')) status('TELEMETRY STALE · WAITING FOR DATA','stale');
@@ -237,3 +241,4 @@ export function initRmsLive(Echo) {
         });
     } catch(e) { status('AUTO UPDATE ACTIVE','fallback'); }
 }
+

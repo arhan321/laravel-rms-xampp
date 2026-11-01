@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web;
 use App\Events\RmsRobotChanged;
 use App\Models\Robot;
 use App\Models\RobotController as ControllerModel;
+use App\Models\RobotGroup;
 use App\Services\Rms\HomePositionMonitor;
 use App\Services\Rms\RobotReachabilityProbe;
 use Illuminate\Contracts\View\View;
@@ -37,6 +38,8 @@ final class RobotIdentityController extends BaseRmsWebController
             'controllerShared' => $robot->controller?->robots()
                 ->where('id', '!=', $robot->id)->exists() ?? false,
             'identityWriteAllowed' => $this->guestWriteAllowed(),
+            'groupOptions' => RobotGroup::query()->orderBy('sort_order')->orderBy('name')->get(),
+            'groupWritesEnabled' => (bool) config('rms_robot_group_management.writes_enabled', false),
         ]);
     }
 
@@ -63,10 +66,18 @@ final class RobotIdentityController extends BaseRmsWebController
             'control_group' => ['required', 'string', 'max:8', 'regex:/^R[1-9][0-9]*$/i'],
             'axis_count' => ['required', 'integer', 'between:1,16'],
             'line_name' => ['nullable', 'string', 'max:100'],
+            'robot_group_id' => ['sometimes', 'nullable', 'integer', 'exists:robot_groups,id'],
+            'original_robot_group_id' => [$request->exists('robot_group_id') ? 'required' : 'sometimes', 'integer', 'min:0'],
             'station_name' => ['nullable', 'string', 'max:100'],
             'confirm_hardware_change' => ['sometimes', 'accepted'],
         ]);
 
+        if (array_key_exists('robot_group_id', $data) && (int) $data['original_robot_group_id'] !== (int) ($robot->robot_group_id ?? 0)) {
+            throw ValidationException::withMessages(['robot_group_id' => 'Penempatan robot berubah dari sesi lain. Muat ulang form sebelum menyimpan.']);
+        }
+        if (array_key_exists('robot_group_id', $data) && (int) ($data['robot_group_id'] ?? 0) !== (int) ($robot->robot_group_id ?? 0)) {
+            abort_unless(config('rms_robot_group_management.writes_enabled', false), 403, 'Pengelolaan grup robot sedang dinonaktifkan.');
+        }
         foreach (['controller_code', 'robot_code', 'control_group'] as $key) {
             $data[$key] = strtoupper(trim($data[$key]));
         }
@@ -138,6 +149,10 @@ final class RobotIdentityController extends BaseRmsWebController
             $lockedController = ControllerModel::query()->lockForUpdate()->findOrFail($controller->id);
             $lockedRobot = Robot::query()->lockForUpdate()->findOrFail($robot->id);
 
+            if (array_key_exists('robot_group_id', $data) && (int) $data['original_robot_group_id'] !== (int) ($lockedRobot->robot_group_id ?? 0)) {
+                throw ValidationException::withMessages(['robot_group_id' => 'Penempatan robot berubah dari sesi lain. Muat ulang form sebelum menyimpan.']);
+            }
+
             // Prevent conflicting concurrent changes while the operator had the form open.
             if ($lockedRobot->updated_at?->ne($robot->updated_at) ||
                 $lockedController->updated_at?->ne($controller->updated_at)) {
@@ -192,6 +207,7 @@ final class RobotIdentityController extends BaseRmsWebController
                 'control_group' => $data['control_group'],
                 'axis_count' => (int) $data['axis_count'],
                 'line_name' => $data['line_name'],
+                'robot_group_id' => array_key_exists('robot_group_id', $data) ? $data['robot_group_id'] : $lockedRobot->robot_group_id,
                 'station_name' => $data['station_name'],
                 'metadata' => $meta,
             ]);
@@ -228,8 +244,8 @@ final class RobotIdentityController extends BaseRmsWebController
             'location' => $data['location'],
             'notes' => $data['notes'],
         ];
-        return array_filter($proposed, static fn ($value, $key) =>
-            $value !== $controller->getAttribute($key), ARRAY_FILTER_USE_BOTH);
+
+        return array_filter($proposed, static fn ($value, $key) => $value !== $controller->getAttribute($key), ARRAY_FILTER_USE_BOTH);
     }
 
     /** Physical identity fields cannot be reassigned after robot-scoped history exists. */
@@ -242,6 +258,7 @@ final class RobotIdentityController extends BaseRmsWebController
                 return true;
             }
         }
+
         return false;
     }
 

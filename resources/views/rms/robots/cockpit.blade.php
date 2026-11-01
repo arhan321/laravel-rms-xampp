@@ -77,16 +77,8 @@ $axisStateLabels = [
     <section class="cp-panel cp-axis-panel">
       <header><div><span class="cp-kicker">CONTROL GROUP {{ $robot->control_group }}</span><h3>Axis Monitoring</h3></div><span class="cp-panel-sub">S · L · U · R · B · T</span></header>
       <div class="cp-robot-illustration" aria-hidden="true">
-        <svg viewBox="0 0 260 156" width="100%" height="145" role="img">
-          <defs><linearGradient id="cpRobotBlue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#75b0d7"/><stop offset="1" stop-color="#1e5f95"/></linearGradient></defs>
-          <ellipse cx="130" cy="143" rx="94" ry="9" fill="#e4ecf1"/>
-          <path d="M56 141h66l-12-22H70z" fill="#1c537e"/><path d="M72 120V94h33v26" fill="url(#cpRobotBlue)" stroke="#1d5d92" stroke-width="3"/>
-          <path d="m88 98-22-43 23-12 24 47z" fill="url(#cpRobotBlue)" stroke="#1d5d92" stroke-width="3"/><path d="m76 48 78-23 12 24-77 23z" fill="url(#cpRobotBlue)" stroke="#1d5d92" stroke-width="3"/>
-          <path d="m157 33 41 35-12 15-45-36z" fill="url(#cpRobotBlue)" stroke="#1d5d92" stroke-width="3"/><path d="m195 75 29 12-7 19-30-13z" fill="#276b9b" stroke="#1d5d92" stroke-width="3"/>
-          <circle cx="88" cy="97" r="17" fill="#d4ecfc" stroke="#216596" stroke-width="6"/><circle cx="76" cy="51" r="14" fill="#d4ecfc" stroke="#216596" stroke-width="6"/>
-          <circle cx="156" cy="39" r="13" fill="#d4ecfc" stroke="#216596" stroke-width="6"/><path d="m218 102-8 21m5-19 13 17" stroke="#245e8c" stroke-width="5" stroke-linecap="round"/>
-        </svg>
-        <div class="cp-robot-caption">Skema ilustrasi robot · bukan digital twin</div>
+        <img class="rms-yaskawa-image rms-yaskawa-cockpit-image" src="{{ asset('rms/images/yaskawa-robot.png') }}" alt="" width="260" height="145" loading="lazy">
+        <div class="cp-robot-caption">Ilustrasi robot Yaskawa · bukan digital twin</div>
       </div>
       <div class="cp-axis-list">
         @foreach($axes as $axis)
@@ -154,3 +146,4 @@ window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
 <script src="{{ asset('rms/js/cockpit.js') }}?v=20261028-servo-current" defer></script>
 @endsection
+

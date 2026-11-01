@@ -90,7 +90,8 @@
         <label class="field"><span>Date (Nameplate) *</span><input class="input" type="month" name="nameplate_date" value="{{ old('nameplate_date', $robot->nameplate_date) }}" required></label>
         <label class="field"><span>Control Group *</span><input class="input" name="control_group" data-original-value="{{ $robot->control_group }}" maxlength="8" pattern="[Rr][1-9][0-9]*" value="{{ old('control_group', $robot->control_group) }}" required><small class="rms-edit-helper">Control group tidak boleh diubah setelah robot memiliki histori.</small></label>
         <label class="field"><span>Jumlah Axis *</span><input class="input" name="axis_count" data-original-value="{{ $robot->axis_count }}" type="number" min="1" max="16" step="1" value="{{ old('axis_count', $robot->axis_count) }}" required><small class="rms-edit-helper">Mengubah jumlah axis robot berhistori tidak diizinkan.</small></label>
-        <label class="field"><span>Line Name</span><input class="input" name="line_name" maxlength="100" value="{{ old('line_name', $robot->line_name) }}" placeholder="Welding 2"></label>
+        @include('rms.robots.partials.group-select', ['currentGroupId' => $robot->robot_group_id])
+        <label class="field"><span>Line proses (opsional)</span><input class="input" name="line_name" maxlength="100" value="{{ old('line_name', $robot->line_name) }}" placeholder="Welding 2 / DOJO"><small class="rms-edit-helper">Informasi proses. Penempatan robot mengikuti pilihan Grup robot.</small></label>
         <label class="field"><span>Station Name</span><input class="input" name="station_name" maxlength="100" value="{{ old('station_name', $robot->station_name) }}" placeholder="DOJO"></label>
       </div>
       <div class="rms-edit-hardware-warning" data-rms-hardware-warning hidden>
@@ -108,6 +109,7 @@
     </section>
   </fieldset>
 </form>
+
 
 <section class="panel rms-section-spaced" id="home-position">
   <div class="panel-header"><div><h2>3. Referensi Home Position</h2><p>Fitur yang sudah ada tetap dipertahankan. Referensi ini bukan perintah gerak.</p></div><span class="badge">POSITION REFERENCE</span></div>
@@ -133,3 +135,4 @@
 <script src="{{ asset('rms/js/robot-registry.js') }}?v=20261022-identity-edit" defer></script>
 <script src="{{ asset('rms/js/robot-identity.js') }}?v=20261022-identity-edit" defer></script>
 @endsection
+
