@@ -7,6 +7,7 @@ document.querySelectorAll('[data-rms-home-form]').forEach(form => {
     const status = form.querySelector('[data-rms-capture-status]');
     const sampleId = form.querySelector('[data-rms-captured-sample]');
     const confirmation = form.querySelector('[name="home_verified"]');
+    if (!button || !status || !sampleId || !confirmation) return;
     const say = (text, state) => { status.textContent = text; status.dataset.state = state; };
     form.querySelectorAll('[data-rms-home-axis]').forEach(input => input.addEventListener('input', () => {
         sampleId.value = '';
@@ -54,21 +55,57 @@ document.querySelectorAll('[data-rms-edit-identity]').forEach(form => {
         .map(name => form.querySelector(`[name="${name}"]`)).filter(Boolean);
     const warning = form.querySelector('[data-rms-hardware-warning]');
     const confirmation = form.querySelector('[data-rms-confirm-hardware]');
+    const editFields = form.querySelector('[data-rms-edit-fields]');
+    const editButtons = form.querySelectorAll('[data-rms-edit-enter]');
+    const saveButtons = form.querySelectorAll('[data-rms-edit-save]');
+    const cancelButtons = form.querySelectorAll('[data-rms-edit-cancel]');
+    const editStatus = form.querySelector('[data-rms-edit-status]');
+    const enhanced = Boolean(editFields);
+    const allowed = form.dataset.editAllowed === '1';
 
     function hasHardwareChange() {
         return fields.some(input => String(input.value).trim().toUpperCase() !==
             String(input.dataset.originalValue || '').trim().toUpperCase());
     }
     function updateWarning() {
-        if (warning) warning.hidden = !hasHardwareChange();
+        if (warning) warning.hidden = (enhanced && form.dataset.editMode !== 'edit') || !hasHardwareChange();
     }
+    function setEditing(editing, focus = false, fieldName = '') {
+        if (!enhanced) return;
+        const active = allowed && editing;
+        form.dataset.editMode = active ? 'edit' : 'view';
+        editFields.disabled = !active;
+        editButtons.forEach(button => { button.hidden = active || !allowed; });
+        saveButtons.forEach(button => { button.hidden = !active; });
+        cancelButtons.forEach(button => { button.hidden = !active; });
+        if (editStatus) editStatus.textContent = active
+            ? 'Mode edit aktif. Simpan perubahan atau pilih Batal edit untuk kembali ke data tersimpan.'
+            : allowed ? 'Klik Edit data untuk mengubah IP, informasi controller, dan identitas robot.'
+                : 'Pengeditan data dinonaktifkan pada environment ini.';
+        updateWarning();
+        if (active && focus) {
+            const target = fieldName ? editFields.elements.namedItem(fieldName) : null;
+            const first = target && !target.disabled && !target.readOnly ? target : editFields.querySelector('input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])');
+            first?.focus({preventScroll: true});
+        }
+    }
+    editButtons.forEach(button => button.addEventListener('click', event => {
+        if (!enhanced || !allowed) return;
+        event.preventDefault();
+        setEditing(true, true, button.dataset.rmsEditFocus || '');
+    }));
     fields.forEach(input => input.addEventListener('input', () => {
         if (confirmation && !hasHardwareChange()) confirmation.checked = false;
         updateWarning();
     }));
+    setEditing(form.dataset.startEditing === '1');
     updateWarning();
 
     form.addEventListener('submit', event => {
+        if (enhanced && form.dataset.editMode !== 'edit') {
+            event.preventDefault();
+            return;
+        }
         if (!hasHardwareChange()) return;
         if (!confirmation?.checked) {
             event.preventDefault();
@@ -78,3 +115,4 @@ document.querySelectorAll('[data-rms-edit-identity]').forEach(form => {
         }
     });
 });
+

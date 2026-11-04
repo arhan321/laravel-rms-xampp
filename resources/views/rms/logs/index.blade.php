@@ -2,6 +2,9 @@
 
 @section('heading', 'Robot log history')
 @section('subtitle', 'Robot history dalam waktu WIB, dilengkapi filter shift dan Excel export.')
+@push('styles')
+<link rel="stylesheet" href="{{ asset('rms/css/torque-shift-summary.css') }}?v=20261103-1">
+@endpush
 @section('content')
 
 <section class="rms-logs-intro panel" aria-label="Ringkasan rentang log">
@@ -144,6 +147,14 @@
       </label>
     </div>
 
+    <label class="rms-logs-field">
+      <span>Perhitungan torque</span>
+      <select name="torque_mode" class="input">
+        <option value="absolute" @selected(($filters['torque_mode'] ?? 'absolute') === 'absolute')>Besar torque · nilai absolut</option>
+        <option value="signed" @selected(($filters['torque_mode'] ?? 'absolute') === 'signed')>Nilai torque · dengan tanda +/−</option>
+      </select>
+    </label>
+
     <label class="rms-logs-field rms-logs-small-field">
       <span>Baris/halaman</span>
       <select name="per_page" class="input">
@@ -179,6 +190,10 @@
     <a class="btn rms-logs-export" href="{{ $exportUrl }}">↓ Download Excel (.xlsx)</a>
   </div>
   <div class="rms-logs-legend">Data diurutkan dari waktu terbaru. Satu sampel telemetry dapat ditampilkan sebagai dua jenis pembacaan: <strong>Servo Monitor</strong> dan <strong>Servo Monitor - Torq</strong>. <strong>Control Power Time</strong> membaca counter ControllerOnTime. Klik <strong>Event penting</strong> untuk fokus pada alarm dan maintenance.</div>
+
+  @if($torqueSummary ?? null)
+    @include('rms.logs.partials.torque-shift-summary')
+  @endif
 
   <div class="table-wrap rms-logs-table-wrap">
     <table class="data-table rms-logs-table">

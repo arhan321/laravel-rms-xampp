@@ -1,6 +1,6 @@
 @extends('rms.layouts.app')
 @section('body_class', 'rms-overview-page')
-@section('heading', 'Robot Maintenance System')
+@section('heading', 'Robot Management System')
 @section('subtitle', 'Plant overview · Condition based maintenance')
 @section('auto_refresh', 'off')
 @push('styles')

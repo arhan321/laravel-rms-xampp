@@ -21,7 +21,10 @@ use App\Models\RobotHealthAssessment;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Schema;
 use App\Models\RobotOperatingTimeSample;
+use App\Services\Rms\TorqueShiftSummary;
 use App\Models\MaintenanceRecommendation;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use App\Services\RmsRobotLogExcelExporter;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -32,7 +35,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 final class RobotLogController extends Controller
 {
     private const TZ = 'Asia/Jakarta';
+
     private const PAGE_SIZES = [25, 50, 100];
+
     private const XLSX_LIMIT = 5000; // 5.000 total rows across categories, cap shown in the report.
 
     // Quick preset for user-selected important events (excluding high-frequency telemetry).
@@ -72,7 +77,7 @@ final class RobotLogController extends Controller
 
     private ?string $maintenanceTimestampExpression = null;
 
-    public function index(Request $request)
+    public function index(Request $request, TorqueShiftSummary $torqueSummary)
     {
         $filters = $this->filters($request);
         // Numbered navigation needs a total count and a stable page number.
@@ -81,9 +86,13 @@ final class RobotLogController extends Controller
             ->appends($this->queryParams($filters))
             ->fragment('rms-logs-results');
 
+        $robots = Robot::query()->orderBy('robot_code')->get(['id', 'robot_code', 'name']);
+        $includesTorque = $filters['types'] === [] || in_array('servo_torque', $filters['types'], true);
+
         return view('rms.logs.index', [
             'title' => 'Robot log history',
-            'robots' => Robot::query()->orderBy('robot_code')->get(['id', 'robot_code', 'name']),
+            'robots' => $robots,
+            'torqueSummary' => $includesTorque ? $torqueSummary->forFilters($filters, $robots) : null,
             'entries' => $this->hydrateRows(collect($page->items())),
             'page' => $page,
             'filters' => $filters,
@@ -100,7 +109,7 @@ final class RobotLogController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $filters = $this->filters($request);
-        if (!class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
+        if (! class_exists(Spreadsheet::class)) {
             abort(500, 'PhpSpreadsheet belum tersedia. Jalankan composer require phpoffice/phpspreadsheet.');
         }
 
@@ -108,7 +117,7 @@ final class RobotLogController extends Controller
         // Each export category runs separately, but must keep the same counter
         // partition as the combined web query when Control Power Time is selected.
         $filters['separate_control_power'] = in_array('control_power', $selected, true);
-        $name = 'RMS_Yaskawa_Log_Detail_' . CarbonImmutable::now(self::TZ)->format('Ymd_His') . '.xlsx';
+        $name = 'RMS_Yaskawa_Log_Detail_'.CarbonImmutable::now(self::TZ)->format('Ymd_His').'.xlsx';
 
         return response()->streamDownload(function () use ($filters, $selected): void {
             $counts = [];
@@ -121,7 +130,9 @@ final class RobotLogController extends Controller
             $quotas = $this->exportQuotas($counts, self::XLSX_LIMIT);
             $entries = [];
             foreach ($quotas as $type => $allowed) {
-                if ($allowed <= 0) continue;
+                if ($allowed <= 0) {
+                    continue;
+                }
                 $single = $filters;
                 $single['types'] = [$type];
                 $cursor = $this->query($single)->limit($allowed)->cursor();
@@ -136,7 +147,7 @@ final class RobotLogController extends Controller
                 return strcmp((string) $b['sort_utc'], (string) $a['sort_utc']);
             });
 
-            (new \App\Services\RmsRobotLogExcelExporter())->write(
+            (new RmsRobotLogExcelExporter)->write(
                 $entries,
                 $filters,
                 $counts,
@@ -173,6 +184,7 @@ final class RobotLogController extends Controller
             $remaining -= $allocate;
             $index++;
         }
+
         return $quota;
     }
 
@@ -208,6 +220,7 @@ final class RobotLogController extends Controller
             'types.*' => ['required', 'string', 'distinct', Rule::in($acceptedTypes)],
             'type' => ['nullable', 'string', Rule::in(array_merge(['all', 'events'], $acceptedTypes))],
             'preset' => ['nullable', Rule::in(['shift_pagi', 'shift_2', 'full_day', 'custom'])],
+            'torque_mode' => ['nullable', Rule::in(['absolute', 'signed'])],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'from' => ['nullable', 'date_format:Y-m-d\\TH:i'],
             'to' => ['nullable', 'date_format:Y-m-d\\TH:i'],
@@ -228,17 +241,17 @@ final class RobotLogController extends Controller
         } else {
             [$fromLocal, $toLocal] = match ($preset) {
                 'shift_pagi' => [
-                    CarbonImmutable::parse($day . ' 07:15:00', self::TZ),
-                    CarbonImmutable::parse($day . ' 16:00:00', self::TZ),
+                    CarbonImmutable::parse($day.' 07:15:00', self::TZ),
+                    CarbonImmutable::parse($day.' 16:00:00', self::TZ),
                 ],
                 // Shift 2 starts on the selected date and ends the following morning.
                 'shift_2' => [
-                    CarbonImmutable::parse($day . ' 21:00:00', self::TZ),
-                    CarbonImmutable::parse($day . ' 05:45:00', self::TZ)->addDay(),
+                    CarbonImmutable::parse($day.' 21:00:00', self::TZ),
+                    CarbonImmutable::parse($day.' 05:45:00', self::TZ)->addDay(),
                 ],
                 default => [
-                    CarbonImmutable::parse($day . ' 00:00:00', self::TZ),
-                    CarbonImmutable::parse($day . ' 23:59:00', self::TZ),
+                    CarbonImmutable::parse($day.' 00:00:00', self::TZ),
+                    CarbonImmutable::parse($day.' 23:59:00', self::TZ),
                 ],
             };
         }
@@ -277,6 +290,7 @@ final class RobotLogController extends Controller
             'robot_ids' => $selectedIds,
             'types' => $selectedTypes,
             'preset' => $preset,
+            'torque_mode' => $v['torque_mode'] ?? 'absolute',
             'date' => $day,
             'from' => $fromLocal->format('Y-m-d\\TH:i'),
             'to' => $toLocal->format('Y-m-d\\TH:i'),
@@ -306,6 +320,7 @@ final class RobotLogController extends Controller
             'robot_ids' => $f['robot_ids'] !== [] ? $f['robot_ids'] : null,
             'types' => $f['types'] !== [] ? $f['types'] : null,
             'preset' => $f['preset'],
+            'torque_mode' => $f['torque_mode'],
             'date' => $f['date'],
             'from' => $f['preset'] === 'custom' ? $f['from'] : null,
             'to' => $f['preset'] === 'custom' ? $f['to'] : null,
@@ -413,11 +428,11 @@ final class RobotLogController extends Controller
             [$status, $tone, $summary, $details] = $this->describe($row->log_type, $model);
             $localTime = CarbonImmutable::parse((string) $row->logged_at_utc, 'UTC')->setTimezone(self::TZ);
             $entries[] = [
-                'key' => $row->log_type . '-' . $row->record_id,
+                'key' => $row->log_type.'-'.$row->record_id,
                 'record_id' => (int) $row->record_id,
                 'sort_utc' => (string) $row->logged_at_utc,
                 'robot_id' => (int) $row->robot_id,
-                'robot_code' => $robot?->robot_code ?? ('ID ' . $row->robot_id),
+                'robot_code' => $robot?->robot_code ?? ('ID '.$row->robot_id),
                 'robot_name' => $robot?->name ?? 'Robot tidak ditemukan',
                 'time_wib' => $localTime->format('d/m/Y H:i:s'),
                 'type' => $row->log_type,
@@ -447,7 +462,7 @@ final class RobotLogController extends Controller
             'alarm_event' => [
                 strtoupper((string) $r->status),
                 $r->status === 'active' ? 'danger' : 'neutral',
-                ($r->alarm_code ?: 'Alarm') . ' — ' . ($r->alarm_name ?: 'Alarm event'),
+                ($r->alarm_code ?: 'Alarm').' — '.($r->alarm_name ?: 'Alarm event'),
                 ['event_key' => $r->event_key, 'alarm_code' => $r->alarm_code, 'alarm_name' => $r->alarm_name, 'severity' => $r->severity, 'subcode' => $r->subcode, 'source' => $r->source, 'last_seen_at' => $r->last_seen_at?->toIso8601String(), 'cleared_at' => $r->cleared_at?->toIso8601String(), 'details' => $r->details],
             ],
             'connection' => [
@@ -465,7 +480,7 @@ final class RobotLogController extends Controller
             'maintenance' => [
                 strtoupper((string) $r->result),
                 $r->result === 'completed' ? 'ok' : 'neutral',
-                'Maintenance ' . $r->action_type . ' oleh ' . $r->performed_by,
+                'Maintenance '.$r->action_type.' oleh '.$r->performed_by,
                 ['findings' => $r->findings, 'action_taken' => $r->action_taken,
                     'started_at' => $r->started_at?->toIso8601String(),
                     'completed_at' => $r->completed_at?->toIso8601String(),
@@ -474,7 +489,7 @@ final class RobotLogController extends Controller
             'recommendation' => [
                 strtoupper((string) $r->status),
                 $r->status === 'open' ? 'warning' : 'neutral',
-                $r->title . ' (' . $r->priority . ')',
+                $r->title.' ('.$r->priority.')',
                 ['recommendation' => $r->recommendation_text, 'priority' => $r->priority, 'source' => $r->source, 'evidence' => $r->evidence],
             ],
             default => ['UNKNOWN', 'neutral', 'Unknown log type', []],
@@ -545,9 +560,6 @@ final class RobotLogController extends Controller
     private function safeCsv(string $text): string
     {
         // Prevent spreadsheet formula injection from robot or operator-supplied text.
-        return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $text) ? "'" . $text : $text;
+        return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $text) ? "'".$text : $text;
     }
 }
-
-
-

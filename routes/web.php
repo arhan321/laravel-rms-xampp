@@ -61,6 +61,7 @@ use App\Http\Controllers\Web\MaintenanceController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\ServoCurrentController;
 use App\Http\Controllers\Web\RobotIdentityController;
+use App\Http\Controllers\Web\EncoderMonitorController;
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
 // ============================================================
@@ -195,6 +196,12 @@ Route::prefix('rms')
 
         Route::get('/robots/{robot}/identity', [RobotIdentityController::class, 'edit'])
             ->whereNumber('robot')->name('robots.identity');
+        Route::get('/robots/{robot}/encoder', [EncoderMonitorController::class, 'show'])
+            ->whereNumber('robot')->name('robots.encoder');
+        Route::get('/robots/{robot}/encoder/live', [EncoderMonitorController::class, 'live'])
+            ->whereNumber('robot')->middleware('throttle:120,1')->name('robots.encoder.live');
+        Route::get('/robots/{robot}/encoder/export', [EncoderMonitorController::class, 'export'])
+            ->whereNumber('robot')->middleware('throttle:10,1')->name('robots.encoder.export');
         Route::put('/robots/{robot}/identity', [RobotIdentityController::class, 'update'])
             ->whereNumber('robot')->middleware('throttle:20,1')->name('robots.identity.update');
         Route::put('/robots/{robot}/home-position', [RobotIdentityController::class, 'saveHome'])

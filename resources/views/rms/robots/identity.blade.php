@@ -21,12 +21,22 @@
   .rms-identity-form [readonly] {background:#f0f2f0; color:#708179; cursor:not-allowed}
   .rms-identity-form fieldset {padding:0; border:0; margin:0; min-width:0}
   .rms-identity-form fieldset[disabled] {opacity:.58}
+  .rms-identity-back {display:flex; flex-wrap:wrap; gap:10px}
+  .rms-identity-toolbar {position:sticky; top:12px; z-index:10; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:19px; padding:15px 18px; border:1px solid #d7e7db; border-radius:12px; background:#fff; box-shadow:0 4px 15px rgba(29,73,51,.06)}
+  .rms-identity-toolbar strong {display:block; color:#1d4933; font-size:14px}
+  .rms-identity-toolbar .registry-actions {margin:0}
+  .rms-identity-section-actions {display:flex; align-items:center; flex-wrap:wrap; gap:10px}
+  .rms-identity-form [data-rms-edit-enter][hidden], .rms-identity-form [data-rms-edit-save][hidden], .rms-identity-form [data-rms-edit-cancel][hidden] {display:none}
+  .rms-identity-form[data-edit-mode="view"] fieldset[disabled] {opacity:1}
+  .rms-identity-form[data-edit-mode="view"] input:disabled, .rms-identity-form[data-edit-mode="view"] textarea:disabled, .rms-identity-form[data-edit-mode="view"] select:disabled {background:#f5f8f5; color:#52705e; opacity:1; -webkit-text-fill-color:#52705e}
+  .rms-identity-form[data-edit-mode="view"] .rms-edit-confirm {display:none}
   @media (max-width:980px) {.rms-identity-form .registry-grid {grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:650px) {.rms-identity-form .registry-grid {grid-template-columns:1fr}.rms-identity-form .registry-actions{justify-content:flex-start}}
 </style>
 @endpush
 @section('content')
-<div class="back"><a class="btn text" href="{{ route('rms.robots.show', $robot) }}">← Kembali ke detail robot</a><a class="btn text" href="{{ route('rms.robots.index') }}">Robot monitor</a></div>
+@php($identityEditing = $identityWriteAllowed && (request()->boolean('edit') || old('_identity_edit') === '1'))
+<div class="back rms-identity-back"><a class="btn text" href="{{ route('rms.robots.show', $robot) }}">← Kembali ke detail robot</a><a class="btn text" href="{{ route('rms.robots.index') }}">Robot monitor</a></div>
 
 @if(session('identity_success'))
   <div class="notice rms-success" role="status">✓ {{ session('identity_success') }}</div>
@@ -47,12 +57,26 @@
 @endif
 
 <form class="rms-identity-form" method="POST" action="{{ route('rms.robots.identity.update', $robot) }}"
-      data-robot-registry-form data-probe-url="{{ route('rms.robots.probe') }}" data-rms-edit-identity>
+      data-robot-registry-form data-probe-url="{{ route('rms.robots.probe') }}" data-rms-edit-identity
+      data-edit-allowed="{{ $identityWriteAllowed ? '1' : '0' }}" data-start-editing="{{ $identityEditing ? '1' : '0' }}" data-edit-mode="{{ $identityEditing ? 'edit' : 'view' }}">
   @csrf
   @method('PUT')
-  <fieldset @disabled(!$identityWriteAllowed)>
-    <section class="panel rms-edit-block">
-      <div class="panel-header"><div><h2>1. Informasi Controller Yaskawa</h2><p>Data controller yang sebelumnya diinput saat Tambah Robot.</p></div><span class="badge sdk">CONTROLLER</span></div>
+  <input type="hidden" name="_identity_edit" value="1">
+  <div class="rms-identity-toolbar">
+    <div><strong>Data controller & robot</strong><span class="rms-edit-helper" data-rms-edit-status role="status" aria-live="polite">{{ $identityEditing ? 'Mode edit aktif. Simpan perubahan atau pilih Batal edit.' : 'Klik Edit data untuk mengubah informasi controller dan identitas robot.' }}</span></div>
+    @if($identityWriteAllowed)
+      <div class="registry-actions">
+        <a href="{{ route('rms.robots.identity', ['robot' => $robot, 'edit' => 1]) }}" class="btn primary" data-rms-edit-enter @if($identityEditing) hidden @endif>Edit data</a>
+        <a href="{{ route('rms.robots.identity', $robot) }}" class="btn" data-rms-edit-cancel @if(!$identityEditing) hidden @endif>Batal edit</a>
+        <button type="submit" class="btn primary" data-rms-edit-save @if(!$identityEditing) hidden @endif>Simpan perubahan</button>
+      </div>
+    @else
+      <button type="button" class="btn" disabled title="Pengeditan identitas dinonaktifkan pada konfigurasi server">Edit data · dinonaktifkan</button>
+    @endif
+  </div>
+  <fieldset data-rms-edit-fields @disabled(!$identityEditing)>
+    <section class="panel rms-edit-block" id="controller-master-data">
+      <div class="panel-header"><div><h2>1. Informasi Controller Yaskawa</h2><p>Data controller yang sebelumnya diinput saat Tambah Robot.</p></div><div class="rms-identity-section-actions"><span class="badge sdk">CONTROLLER</span>@if($identityWriteAllowed && !$controllerShared)<a href="{{ route('rms.robots.identity', ['robot' => $robot, 'edit' => 1]) }}#controller-master-data" class="btn" data-rms-edit-enter data-rms-edit-focus="controller_code" @if($identityEditing) hidden @endif>Edit controller</a>@endif</div></div>
       @if($controllerShared)
         <div class="rms-edit-shared"><strong>Controller digunakan oleh beberapa robot.</strong> Kolom controller dikunci pada halaman ini agar perubahan pada satu robot tidak memengaruhi robot lain. Data robot tetap dapat diedit.</div>
       @endif
@@ -80,7 +104,7 @@
     </section>
 
     <section class="panel rms-edit-block" id="robot-master-data">
-      <div class="panel-header"><div><h2>2. Identitas Robot</h2><p>Semua kolom ini akan disimpan ke record robot ID #{{ $robot->id }}.</p></div><span class="badge">ROBOT MASTER</span></div>
+      <div class="panel-header"><div><h2>2. Identitas Robot</h2><p>Semua kolom ini akan disimpan ke record robot ID #{{ $robot->id }}.</p></div><div class="rms-identity-section-actions"><span class="badge">ROBOT MASTER</span>@if($identityWriteAllowed)<a href="{{ route('rms.robots.identity', ['robot' => $robot, 'edit' => 1]) }}#robot-master-data" class="btn" data-rms-edit-enter data-rms-edit-focus="name" @if($identityEditing) hidden @endif>Edit identitas robot</a>@endif</div></div>
       <div class="registry-grid">
         <label class="field"><span>Robot Code *</span><input class="input" name="robot_code" maxlength="80" value="{{ old('robot_code', $robot->robot_code) }}" required></label>
         <label class="field"><span>Nama Robot *</span><input class="input" name="name" maxlength="150" value="{{ old('name', $robot->name) }}" required></label>
@@ -102,12 +126,15 @@
         <input type="checkbox" name="confirm_hardware_change" value="1" data-rms-confirm-hardware @checked(old('confirm_hardware_change'))>
         Saya memahami dampak perubahan IP / control group / jumlah axis dan sudah melakukan koordinasi dengan teknisi bila data tersebut diubah.
       </label>
-      <div class="registry-actions">
-        <a href="{{ route('rms.robots.show', $robot) }}" class="btn">Batal</a>
-        <button type="submit" class="btn primary">✓ Simpan Perubahan Data Robot</button>
-      </div>
     </section>
   </fieldset>
+  @if($identityWriteAllowed)
+    <div class="registry-actions">
+      <a href="{{ route('rms.robots.identity', ['robot' => $robot, 'edit' => 1]) }}" class="btn primary" data-rms-edit-enter @if($identityEditing) hidden @endif>Edit data</a>
+      <a href="{{ route('rms.robots.identity', $robot) }}" class="btn" data-rms-edit-cancel @if(!$identityEditing) hidden @endif>Batal edit</a>
+      <button type="submit" class="btn primary" data-rms-edit-save @if(!$identityEditing) hidden @endif>Simpan perubahan</button>
+    </div>
+  @endif
 </form>
 
 
@@ -133,6 +160,6 @@
   </form>
 </section>
 <script src="{{ asset('rms/js/robot-registry.js') }}?v=20261022-identity-edit" defer></script>
-<script src="{{ asset('rms/js/robot-identity.js') }}?v=20261022-identity-edit" defer></script>
+<script src="{{ asset('rms/js/robot-identity.js') }}?v=20261103-visible-edit-1" defer></script>
 @endsection
 
