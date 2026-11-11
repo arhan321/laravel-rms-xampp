@@ -1,0 +1,49 @@
+/* RMS Alarm Pareto — additive CSS, scoped to this panel only. */
+.rms-alarm-pareto{overflow:visible}
+.rms-pareto-header{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.rms-pareto-header h2{font-size:18px;letter-spacing:-.025em;margin:4px 0 6px;color:#17362d}
+.rms-pareto-header p{font-size:12px;color:#74877d;margin:0}
+.rms-pareto-eyebrow{font-size:10px;font-weight:800;letter-spacing:.13em;color:#278166}
+.rms-pareto-source-pill{border:1px solid #cce8d6;background:#edf8ef;color:#25734f;font-weight:700;border-radius:40px;padding:7px 12px;font-size:10px;white-space:nowrap}
+.rms-pareto-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:21px 0 19px}
+.rms-pareto-metric{background:#f9fbf9;border:1px solid #e2eae5;padding:14px 15px;border-radius:12px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.rms-pareto-metric>span{font-size:11px;color:#61786e;font-weight:650}
+.rms-pareto-metric>strong{font-size:25px;line-height:1.22;color:#17362d;letter-spacing:-.04em;overflow-wrap:anywhere}
+.rms-pareto-metric strong.rms-pareto-code{font-size:21px;color:#137a5b}
+.rms-pareto-metric strong em{font-size:12px;letter-spacing:normal;color:#73867c;font-style:normal;font-weight:600}
+.rms-pareto-metric>small{font-size:10px;color:#839389;line-height:1.45}
+.rms-pareto-chart-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 11px}
+.rms-pareto-chart-top>strong{font-size:13px;color:#1d3c31}
+.rms-pareto-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#647a6e;font-size:11px}
+.rms-pareto-legend>span{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.rms-pareto-legend i{display:inline-block;flex-shrink:0}
+.rms-pareto-legend-bar{width:15px;height:10px;border-radius:2px;background:#268b6a}
+.rms-pareto-legend-line{width:17px;border-top:3px solid #2d75b9}
+.rms-pareto-legend-other{width:15px;height:10px;border-radius:2px;background:#afb9b4}
+.rms-pareto-chart-scroll{overflow-x:auto;overflow-y:hidden;max-width:100%;padding:8px 8px 0 0;border-radius:12px;border:1px solid #e8eee9;background:#fff}
+.rms-pareto-svg{display:block;width:100%;min-width:730px;min-height:260px;font-family:inherit}
+.rms-pareto-grid-line{stroke:#e7eee8;stroke-width:1}
+.rms-pareto-axis-tick,.rms-pareto-x-sub{fill:#819188;font-size:12px}
+.rms-pareto-axis-title{fill:#73877c;font-size:12px;font-weight:650}
+.rms-pareto-axis-bottom{fill:#76877e;font-size:12px}
+.rms-pareto-x-label{fill:#3c584a;font-size:12px;font-weight:700}
+.rms-pareto-bar-number{fill:#285747;font-size:12px;font-weight:800}
+.rms-pareto-bar{fill:#57a889;transition:fill .18s}
+.rms-pareto-main-bar{fill:#167754;transition:fill .18s}
+.rms-pareto-other-bar{fill:#aebbb4;transition:fill .18s}
+.rms-pareto-bar:hover,.rms-pareto-main-bar:hover{fill:#0e6045}
+.rms-pareto-other-bar:hover{fill:#87978d}
+.rms-pareto-cumulative-line{fill:none;stroke:#327fbe;stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round;pointer-events:none}
+.rms-pareto-line-dot{fill:#fff;stroke:#327fbe;stroke-width:3;cursor:help}
+.rms-pareto-line-dot:hover{fill:#327fbe}
+.rms-pareto-details{margin-top:16px;border:1px solid #e5ece7;border-radius:10px;overflow:hidden}
+.rms-pareto-details summary{font-size:12px;font-weight:700;color:#27644d;background:#f6faf7;padding:13px 15px;cursor:pointer}
+.rms-pareto-details .table-wrap{margin:0;overflow-x:auto}
+.rms-pareto-table{width:100%}
+.rms-pareto-footnote{font-size:11px;line-height:1.7;color:#667d71;margin:16px 0 0;padding:11px 13px;border-left:3px solid #92c9aa;background:#f6faf6;border-radius:0 8px 8px 0}
+.rms-pareto-empty{margin:18px 0 4px;padding:20px;border:1px dashed #c3d8c8;background:#f7faf8;border-radius:10px;color:#496557}
+.rms-pareto-empty strong{display:block;margin-bottom:5px}
+.rms-pareto-empty p{font-size:12px;line-height:1.6;margin:0}
+@media(max-width:1050px){.rms-pareto-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.rms-pareto-metrics{grid-template-columns:1fr}.rms-pareto-metric{padding:12px}.rms-pareto-header h2{font-size:16px}.rms-pareto-legend{gap:8px}}
+@media(prefers-reduced-motion:reduce){.rms-pareto-bar,.rms-pareto-main-bar,.rms-pareto-other-bar{transition:none}}

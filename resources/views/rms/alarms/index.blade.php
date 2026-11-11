@@ -4,6 +4,11 @@
 @section('auto_refresh', '30')
 @section('content')
 
+{{-- RMS PARETO ADDITION: scoped stylesheet only, no changes to existing layout. --}}
+@push('styles')
+  <link rel="stylesheet" href="{{ asset('rms/css/alarm-pareto.css') }}?v=20261111-1">
+@endpush
+
 {{-- Styling lokal: tidak perlu mengubah layout dashboard / CSS Robot Logs. --}}
 <style>
   .rms-alarm-robot-field{position:relative;min-width:250px;max-width:360px;flex:1 1 280px;display:grid;gap:6px}
@@ -115,10 +120,21 @@
         @endforeach
       </select>
     </label>
+    {{-- RMS PARETO ADDITION: period filters only the Pareto. --}}
+    <label class="field">Periode Pareto
+      <select name="pareto_period" class="input">
+        @foreach(['all' => 'Seluruh histori', '7d' => '7 hari', '30d' => '30 hari', '90d' => '90 hari'] as $value => $label)
+          <option value="{{ $value }}" @selected(($filter['pareto_period'] ?? 'all') === $value)>{{ $label }}</option>
+        @endforeach
+      </select>
+    </label>
     <button type="submit" class="btn primary">Cari</button>
     <a class="btn" href="{{ route('rms.alarms.index') }}">Reset</a>
   </form>
 </div>
+
+{{-- RMS PARETO ADDITION: full chart partial, no changes to original alarm tables. --}}
+@include('rms.alarms.partials.pareto', ['pareto' => $alarmPareto])
 
 <section class="panel rms-section-spaced">
   <div class="panel-header"><h2>Identified Controller Alarm Events</h2><span class="rms-muted-small">{{ $events->total() }} record</span></div>

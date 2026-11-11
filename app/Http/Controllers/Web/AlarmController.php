@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web;
 
 use App\Models\Robot;
-use App\Models\RobotAlarmEvent;
-use App\Models\RobotAlarmHistoryEntry;
-use App\Models\RobotAlarmSnapshot;
-use App\Services\Rms\AlarmCountermeasureContext;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use App\Models\RobotAlarmEvent;
+use App\Models\RobotAlarmSnapshot;
+use Illuminate\Contracts\View\View;
+use App\Models\RobotAlarmHistoryEntry;
+use App\Services\Rms\AlarmCountermeasureContext;
 
 /**
  * Alarm Center: read-only events and SDK snapshots.
@@ -28,6 +28,7 @@ class AlarmController extends BaseRmsWebController
             'severity' => ['nullable', 'string', 'max:32'],
             'category' => ['nullable', 'in:all,Major,Minor,UserSystem,User,Offline'],
             'search' => ['nullable', 'string', 'max:100'],
+            'pareto_period' => ['nullable', 'in:all,7d,30d,90d'],
         ]);
 
         // Empty selection means all robots. `robot_ids[]` takes priority over old `robot_id`.
@@ -99,6 +100,10 @@ class AlarmController extends BaseRmsWebController
             $historyQuery->where('category', $filter['category']);
         }
 
+        // RMS PARETO ADDITION: summary uses a CLONE of the filtered history query.
+        $alarmPareto = (new \App\Services\Rms\AlarmParetoSummary())
+            ->fromHistoryQuery($historyQuery, (string) ($filter['pareto_period'] ?? 'all'));
+
         $snapshots = $snapshotsQuery->orderByDesc('sampled_at')->orderByDesc('id')->limit(30)->get();
 
         return view('rms.alarms.index', [
@@ -118,6 +123,7 @@ class AlarmController extends BaseRmsWebController
             // Overall active count within chosen robots, regardless of status/search filter.
             'activeEventCount' => $activeCountQuery->count(),
             'filter' => $filter,
+            'alarmPareto' => $alarmPareto,
             'parsingNote' => 'Alarm readings are not automatically treated as verified Controller Alarm Events.',
         ]);
     }
