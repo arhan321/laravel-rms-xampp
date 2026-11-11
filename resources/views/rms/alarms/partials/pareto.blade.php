@@ -58,13 +58,44 @@
       $paretoSlots = max(1, count($paretoRows));
       $paretoSlotWidth = $paretoPlotWidth / $paretoSlots;
       $paretoBarWidth = min(68, $paretoSlotWidth * 0.55);
-      $paretoMaxCount = max(array_column($paretoRows, 'count'));
-      $paretoTickStep = max(1, (int) ceil($paretoMaxCount / 4));
+      // Skala kiri KHUSUS jumlah per kode alarm (bukan total seluruh histori),
+      // agar batang berukuran jelas ketika total histori jauh lebih besar.
+      // 'Lainnya' merupakan gabungan banyak kode, tidak ikut menentukan skala.
+      $paretoIndividualCounts = array_map(
+          static fn (array $item): int => (int) $item['count'],
+          array_values(array_filter($paretoRows, static fn (array $item): bool => ! $item['other']))
+      );
+      $paretoMaxIndividual = max(1, ...$paretoIndividualCounts);
+      $paretoTickStep = max(1, (int) ceil($paretoMaxIndividual / 4));
       $paretoYMax = $paretoTickStep * 4;
+      // Garis Pareto secara visual dimulai di SUDUT KANAN ATAS batang pertama.
+      // Dengan skala kiri yang diperbesar, garis kumulatif 0-100% LINEAR
+      // tidak mungkin sekaligus menempel di puncak batang pertama. Maka
+      // koordinat skala kanan dibuat PIECEWISE NON-LINEAR dan setiap tick
+      // persentase kanan ditempatkan memakai fungsi yang SAMA.
+      // Nilai persentase tetap ASLI, tidak diubah/diestimasi.
+      $paretoFirstPercent = max(0.000001, min(100.0, (float) $paretoRows[0]['cumulative']));
+      $paretoFirstBarTop = $paretoPlotBottom
+          - $paretoPlotHeight * ((float) $paretoRows[0]['count'] / $paretoYMax);
+      $paretoPercentY = static function (float $percent) use (
+          $paretoPlotBottom, $paretoPlotTop, $paretoFirstPercent, $paretoFirstBarTop
+      ): float {
+          $percent = max(0.0, min(100.0, $percent));
+          if ($percent <= $paretoFirstPercent || $paretoFirstPercent >= 100.0) {
+              // Bagian 0% hingga kontribusi alarm pertama: 0 -> dasar, p1 -> puncak bar.
+              return $paretoPlotBottom
+                  - ($percent / $paretoFirstPercent) * ($paretoPlotBottom - $paretoFirstBarTop);
+          }
+          // Bagian p1 hingga 100%: p1 -> puncak bar pertama, 100 -> puncak chart.
+          return $paretoFirstBarTop
+              - (($percent - $paretoFirstPercent) / (100.0 - $paretoFirstPercent))
+              * ($paretoFirstBarTop - $paretoPlotTop);
+      };
       $paretoLinePoints = [];
       foreach ($paretoRows as $i => $row) {
-          $cx = $paretoPlotLeft + $paretoSlotWidth * ($i + 0.5);
-          $cy = $paretoPlotBottom - $paretoPlotHeight * ($row['cumulative'] / 100);
+          // Tepat di TEPI KANAN batang, termasuk titik awal bar pertama.
+          $cx = $paretoPlotLeft + $paretoSlotWidth * ($i + 0.5) + $paretoBarWidth / 2;
+          $cy = $paretoPercentY((float) $row['cumulative']);
           $paretoLinePoints[] = number_format($cx, 2, '.', '').','.number_format($cy, 2, '.', '');
       }
       $paretoLinePath = implode(' ', $paretoLinePoints);
@@ -73,25 +104,36 @@
     <div class="rms-pareto-chart-scroll" role="region" aria-label="Grafik Pareto Alarm History. Klik batang untuk melihat informasi lengkap error." tabindex="0">
       <svg class="rms-pareto-svg rms-pareto-svg-interactive" viewBox="0 0 1540 493" role="img" aria-labelledby="rms-pareto-svg-title rms-pareto-svg-description" style="min-width:1280px">
         <title id="rms-pareto-svg-title">Grafik Pareto Top 10 Alarm History</title>
-        <desc id="rms-pareto-svg-description">Batang hijau memperlihatkan jumlah record unik per alarm, titik dan garis biru memperlihatkan persentase kumulatif dari seluruh alarm history pada filter. Label bawah menampilkan kode dan nama error. Klik setiap batang untuk rincian lengkap. Batang abu-abu adalah gabungan kode alarm lainnya.</desc>
+        <desc id="rms-pareto-svg-description">Batang hijau memperlihatkan jumlah catatan tiap alarm memakai sumbu kiri. Garis biru menampilkan persentase kumulatif asli, dimulai pada sudut kanan atas batang pertama. Agar batang tetap tinggi sekaligus titik pertama menempel pada batang, skala persentase kanan memakai pemetaan visual nonlinier dengan posisi tick yang sesuai. Semua angka di rincian tetap berasal dari data asli. Klik batang untuk detail.</desc>
 
         @for($tick = 0; $tick <= 4; $tick++)
           @php
             $tickY = $paretoPlotBottom - $paretoPlotHeight * $tick / 4;
+            // Sumbu kiri khusus frekuensi per jenis alarm: 0, step, 2*step, ...
             $tickValue = $paretoTickStep * $tick;
           @endphp
           <line x1="{{ $paretoPlotLeft }}" y1="{{ $tickY }}" x2="{{ $paretoPlotRight }}" y2="{{ $tickY }}" class="rms-pareto-grid-line" />
           <text x="{{ $paretoPlotLeft - 11 }}" y="{{ $tickY + 4 }}" text-anchor="end" class="rms-pareto-axis-tick">{{ number_format($tickValue, 0, ',', '.') }}</text>
-          <text x="{{ $paretoPlotRight + 14 }}" y="{{ $tickY + 4 }}" text-anchor="start" class="rms-pareto-axis-tick">{{ $tick * 25 }}%</text>
         @endfor
+        {{-- Angka kumulatif memakai posisi tepat pada skala kanan NON-LINIER. --}}
+        @foreach([0, 25, 50, 75, 100] as $percentTick)
+          @php $percentTickY = $paretoPercentY((float) $percentTick); @endphp
+          <line x1="{{ $paretoPlotRight - 5 }}" y1="{{ $percentTickY }}" x2="{{ $paretoPlotRight + 5 }}" y2="{{ $percentTickY }}" stroke="#93aba2" stroke-width="1" />
+          <text x="{{ $paretoPlotRight + 14 }}" y="{{ $percentTickY + 4 }}" text-anchor="start" class="rms-pareto-axis-tick">{{ $percentTick }}%</text>
+        @endforeach
 
         <text x="{{ $paretoPlotLeft }}" y="22" class="rms-pareto-axis-title">Jumlah record unik</text>
-        <text x="{{ $paretoPlotRight + 14 }}" y="22" class="rms-pareto-axis-title">Kumulatif</text>
+        <text x="{{ $paretoPlotRight + 14 }}" y="22" class="rms-pareto-axis-title">Kumulatif*</text>
 
         @foreach($paretoRows as $i => $row)
           @php
             $centerX = $paretoPlotLeft + $paretoSlotWidth * ($i + 0.5);
-            $height = $paretoPlotHeight * $row['count'] / $paretoYMax;
+            // Kategori Lainnya adalah gabungan banyak kode. Jika melewati batas
+            // grafik, tampilkan batang TERPOTONG dengan tanda putus, bukan
+            // memperkecil semua batang alarm tunggal agar muat nilai gabungan.
+            $paretoOtherTruncated = $row['other'] && (int) $row['count'] > $paretoYMax;
+            $paretoDisplayCount = $paretoOtherTruncated ? $paretoYMax * 0.92 : (float) $row['count'];
+            $height = $paretoPlotHeight * $paretoDisplayCount / $paretoYMax;
             $rectX = $centerX - $paretoBarWidth / 2;
             $rectY = $paretoPlotBottom - $height;
             // Setiap label menyajikan code/subcode lalu nama error (maksimal 3 baris).
@@ -120,6 +162,12 @@
             <rect x="{{ $rectX }}" y="{{ $rectY }}" width="{{ $paretoBarWidth }}" height="{{ max(1, $height) }}" rx="5" class="{{ $row['other'] ? 'rms-pareto-other-bar' : ($i === 0 ? 'rms-pareto-main-bar' : 'rms-pareto-bar') }}">
               <title>Klik untuk detail — {{ $row['label'] }}: {{ $row['name'] }} ({{ $row['count'] }} record, {{ $row['percent'] }}%)</title>
             </rect>
+            @if($paretoOtherTruncated)
+              {{-- Garis putus diagonal di batang Lainnya: nilainya terpotong, bukan 0.92 * max. --}}
+              <path d="M {{ $rectX + 10 }} {{ $rectY + 19 }} l 12 -9 M {{ $rectX + 28 }} {{ $rectY + 19 }} l 12 -9 M {{ $rectX + 46 }} {{ $rectY + 19 }} l 12 -9"
+                    fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" pointer-events="none" />
+              <title>Batang Lainnya dipotong agar frekuensi setiap kode alarm tetap terbaca. Jumlah sebenarnya: {{ $row['count'] }}.</title>
+            @endif
             <text x="{{ $centerX }}" y="{{ max(33, $rectY - 8) }}" text-anchor="middle" class="rms-pareto-bar-number">{{ number_format($row['count'], 0, ',', '.') }}</text>
             <text x="{{ $centerX }}" y="{{ $paretoPlotBottom + 26 }}" text-anchor="middle" class="rms-pareto-x-label">{{ $displayLabel }}</text>
             @foreach($displayNameLines as $lineNumber => $line)
@@ -129,20 +177,20 @@
         @endforeach
 
         <polyline points="{{ $paretoLinePath }}" class="rms-pareto-cumulative-line" />
+        {{-- Titik pertama berada TEPAT di sudut kanan atas bar pertama; titik lain mengikuti pemetaan persen kanan. --}}
         @foreach($paretoRows as $i => $row)
           @php
-            $dotX = $paretoPlotLeft + $paretoSlotWidth * ($i + 0.5);
-            $dotY = $paretoPlotBottom - $paretoPlotHeight * ($row['cumulative'] / 100);
+            [$dotX, $dotY] = array_map('floatval', explode(',', $paretoLinePoints[$i]));
           @endphp
           <circle cx="{{ $dotX }}" cy="{{ $dotY }}" r="5.5" class="rms-pareto-line-dot">
             <title>Kumulatif hingga {{ $row['label'] }}: {{ $row['cumulative'] }}%</title>
           </circle>
         @endforeach
-        <text x="{{ ($paretoPlotLeft + $paretoPlotRight) / 2 }}" y="476" text-anchor="middle" class="rms-pareto-axis-bottom">Klik batang untuk melihat nama error, jumlah kemunculan dan persentase kumulatif</text>
+        <text x="{{ ($paretoPlotLeft + $paretoPlotRight) / 2 }}" y="476" text-anchor="middle" class="rms-pareto-axis-bottom">Garis mulai di kanan atas batang pertama · *Skala kanan nonlinier · Angka kumulatif tetap asli.</text>
       </svg>
     </div>
 
-    <p class="rms-pareto-click-hint">&#9432; Klik batang hijau (atau abu-abu) untuk membuka detail alarm. Nama di bawah batang adalah identifikasi kode dan deskripsi yang tersimpan di controller.</p>
+    <p class="rms-pareto-click-hint">&#9432; Garis dimulai dari sudut kanan atas batang pertama, seperti referensi visual. Agar batang tetap besar, <strong>skala persentase kanan tidak linier</strong>; angka persentase pada titik/detail/tabel tetap hasil perhitungan asli. Klik batang untuk membuka detail. Batang abu-abu Lainnya yang bertanda miring adalah gabungan yang ditampilkan terpotong.</p>
 
     {{-- Dialog per alarm: menggunakan event delegation agar berfungsi setelah auto-refresh dashboard. --}}
     <dialog class="rms-pareto-dialog" data-rms-pareto-dialog aria-labelledby="rms-pareto-dialog-title">
