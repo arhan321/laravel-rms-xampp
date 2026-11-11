@@ -440,3 +440,6 @@ Route::prefix('rms')
 // ============================================================
 // END OF RMS WEB ROUTES
 // ============================================================
+
+// RMS Job Monitoring -> Torque (read-only, additive routes)
+require __DIR__.'/rms_job_torque.php';
