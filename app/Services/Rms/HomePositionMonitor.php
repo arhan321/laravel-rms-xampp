@@ -20,22 +20,25 @@ final class HomePositionMonitor
             'reason' => 'Home position belum ditetapkan oleh teknisi.',
             'axes' => [], 'tolerance_pulses' => null, 'sampled_at' => null,
         ];
-        if (! is_array($reference) || ($reference['verified'] ?? false) !== true
+        if (! is_array($reference)) {
+            return $result;
+        }
+        if (($reference['verified'] ?? false) !== true
             || ($reference['group'] ?? null) !== $robot->control_group
             || blank($reference['serial_number'] ?? null)
             || ($reference['serial_number'] ?? null) !== $robot->serial_number
             || blank($reference['verified_by'] ?? null) || blank($reference['source_reference'] ?? null)
             || (int) $robot->axis_count !== 6) {
-            return $result;
+            return [...$result, 'reason' => 'Referensi home belum terverifikasi atau tidak sesuai identitas fisik robot. Verifikasi ulang oleh teknisi.'];
         }
         $tolerance = $reference['tolerance_pulses'] ?? null;
         if (! is_int($tolerance) || $tolerance < 0 || $tolerance > 1_000_000) {
-            return $result;
+            return [...$result, 'reason' => 'Referensi home tidak valid: toleransi pulse perlu diverifikasi ulang.'];
         }
         foreach (self::AXES as $axis) {
             $target = $reference['axes'][$axis] ?? null;
             if (! is_int($target) || $target < -2147483648 || $target > 2147483647) {
-                return $result;
+                return [...$result, 'reason' => 'Referensi home tidak valid: nilai axis perlu diverifikasi ulang.', 'axes' => []];
             }
             $result['axes'][$axis] = ['target' => $target, 'current' => null, 'delta' => null, 'within_tolerance' => null];
         }

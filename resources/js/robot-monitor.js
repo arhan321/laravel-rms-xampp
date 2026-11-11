@@ -56,9 +56,85 @@ export function updateRobotCard(card, robot) {
     if (stamp) stamp.textContent = robot.last_sampled_wib?.split(' ').at(-1) || 'Belum ada';
 }
 
+/** A read-only view of the most recent valid pulse packet, independent of home reference. */
+function updateLastKnownPosition(root, robot) {
+    const panel = one(root, '[data-rms-last-position]');
+    if (!panel) return;
+
+    const connected = robot.connectivity === 'connected' && robot.position_ok === true && !robot.is_demo;
+    const pulses = Object.fromEntries(AXES.map(axis => [axis, robot.axes?.[axis]?.pulse]));
+    const axesValid = AXES.every(axis => Number.isInteger(Number(pulses[axis]))
+        && pulses[axis] !== null && pulses[axis] !== undefined && pulses[axis] !== '' 
+        && Number(pulses[axis]) >= -2147483648 && Number(pulses[axis]) <= 2147483647);
+    const sampledMs = Date.parse(robot.last_sampled_at || '');
+    const previousMs = Date.parse(panel.dataset.rmsLastPositionTimestamp || '');
+    const sampleNewEnough = Number.isFinite(sampledMs) && (!Number.isFinite(previousMs) || sampledMs >= previousMs);
+    const live = connected && axesValid && sampleNewEnough;
+
+    if (live) {
+        AXES.forEach(axis => {
+            const position = numeric(pulses[axis]);
+            const last = one(panel, `[data-rms-position-last="${axis}"]`);
+            if (last) last.textContent = position;
+        });
+        panel.dataset.rmsLastPositionTimestamp = robot.last_sampled_at;
+        const sampled = one(panel, '[data-rms-position-last-sampled]');
+        if (sampled) sampled.textContent = robot.last_sampled_wib || '—';
+        const received = one(panel, '[data-rms-position-last-received]');
+        if (received) received.textContent = robot.last_received_wib || '—';
+    }
+
+    AXES.forEach(axis => {
+        const current = one(panel, `[data-rms-position-current="${axis}"]`);
+        if (current) current.textContent = live ? numeric(pulses[axis]) : '—';
+    });
+    const hasLast = AXES.every(axis => {
+        const value = one(panel, `[data-rms-position-last="${axis}"]`)?.textContent?.trim();
+        return value !== undefined && value !== '' && value !== '—';
+    });
+    const status = one(panel, '[data-rms-position-status]');
+    const reason = one(panel, '[data-rms-position-reason]');
+    if (status) {
+        status.textContent = live ? 'LIVE POSITION' : (hasLast ? 'LAST KNOWN / STALE' : 'BELUM ADA DATA');
+        status.classList.toggle('connected', live);
+        status.classList.toggle('unknown', !live);
+    }
+    if (reason) reason.textContent = live
+        ? 'Pembacaan pulse enam axis terakhir masih segar.'
+        : (hasLast
+            ? 'Posisi terakhir tercatat tetap ditampilkan. Current Position tidak tersedia / sudah kedaluwarsa.'
+            : 'Belum ada enam nilai pulse yang berhasil dan valid.');
+
+    const age = one(panel, '[data-rms-position-age]');
+    const lastMs = Date.parse(panel.dataset.rmsLastPositionTimestamp || '');
+    if (age && Number.isFinite(lastMs)) age.textContent = `${Math.max(0, Math.floor((Date.now() - lastMs) / 1000)).toLocaleString('id-ID')} detik`;
+}
+
+function invalidateLastKnownPosition(root) {
+    const panel = one(root, '[data-rms-last-position]');
+    if (!panel) return;
+    AXES.forEach(axis => {
+        const current = one(panel, `[data-rms-position-current="${axis}"]`);
+        if (current) current.textContent = '—';
+    });
+    const hasLast = AXES.every(axis => {
+        const value = one(panel, `[data-rms-position-last="${axis}"]`)?.textContent?.trim();
+        return value !== undefined && value !== '' && value !== '—';
+    });
+    const status = one(panel, '[data-rms-position-status]');
+    if (status) {
+        status.textContent = hasLast ? 'LAST KNOWN / STALE' : 'BELUM ADA DATA';
+        status.classList.remove('connected');
+        status.classList.add('unknown');
+    }
+    const reason = one(panel, '[data-rms-position-reason]');
+    if (reason) reason.textContent = 'Pembaruan live belum tersedia. Nilai terakhir (jika ada) tidak dihapus.';
+}
+
 export function updateRobotDetail(robot, root = document) {
     if (!robot) return;
     shared(root, robot, true);
+    updateLastKnownPosition(root, robot);
     const stamp = one(root, '[data-rms-last-sampled]');
     if (stamp) stamp.textContent = robot.last_sampled_wib ?? 'Belum ada';
     const panels = all(root, '.rms-detail-columns > section.panel');
@@ -121,6 +197,7 @@ export function expireRobotSnapshot(robot, now, staleSeconds = 30) {
 /** The first HTTP request can fail before there is a snapshot to age out. */
 export function invalidateInitialMonitor(root = document) {
     const reason = 'Pembaruan monitoring belum tersedia. Menunggu pembacaan yang segar.';
+    invalidateLastKnownPosition(root);
     all(root, '[data-rms-servo]').forEach(element => badge(element, 'SERVO UNKNOWN', 'unknown', 'servo', reason));
     all(root, '[data-rms-health-label]').forEach(element => badge(element, 'UNKNOWN', 'unknown', '', reason));
     all(root, '[data-rms-home]').forEach(element => badge(element, 'UNKNOWN', 'unknown', 'home', reason));

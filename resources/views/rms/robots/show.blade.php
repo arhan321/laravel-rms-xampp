@@ -38,6 +38,10 @@
   </tbody></table></div>
   <a class="btn" href="{{ route('rms.robots.identity', $robot) }}#home-position">Atur referensi home</a>
 </section>
+{{-- Existing Home Position remains unchanged; show last valid pulse independently. --}}
+@inject('lastPositionMonitor', 'App\Services\Rms\LastKnownPositionMonitor')
+@php($lastKnownPosition = $lastPositionMonitor->forRobot($robot, $card['connectivity'] === 'connected', $card['telemetry']?->id))
+@include('rms.robots.partials.last-known-position', ['position' => $lastKnownPosition, 'robot' => $robot])
 @include('rms.partials.health-legend')
 <div class="two-col rms-section-spaced">
  <section class="panel"><h2>Operating Time History</h2><p class="rms-muted-small">Nilai hanya ditampilkan sebagai jam setelah formatnya diverifikasi.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Type</th><th>Operating Time Value</th></tr></thead><tbody>@forelse($operatingTimeHistory as $t)<tr><td>{{ $t->sampled_at?->timezone('Asia/Jakarta')->format('d M H:i:s') }}</td><td>{{ $t->time_type }}</td><td>{{ $t->value_seconds !== null ? number_format($t->value_seconds / 3600, 2, ',', '.') . ' h' : ($t->value_raw ?: '—') }}</td></tr>@empty<tr><td colspan="3">Belum ada data</td></tr>@endforelse</tbody></table></div></section>
