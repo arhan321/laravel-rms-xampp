@@ -96,6 +96,8 @@
         <p class="jt-muted">Waktu data: {{ $filters['from_label'] }} sampai sebelum {{ $filters['until_label'] }} WIB. Akhir menit diproses inklusif. Filter shift mengikuti konfigurasi Robot Logs.</p>
     </section>
 
+    @include('rms.robots.partials.job-monitor-evidence', ['evidence' => $jobEvidence])
+
     <div class="jt-grid">
         <div class="jt-card"><small>Torque samples valid</small><strong>{{ number_format($report['total_torque_samples'], 0, ',', '.') }}</strong><small>Semua sampel torque valid, tanpa simulasi</small></div>
         <div class="jt-card"><small>Torque + job teridentifikasi</small><strong>{{ number_format($report['tagged_torque_samples'], 0, ',', '.') }}</strong><small>Hanya sampel bertanda job</small></div>

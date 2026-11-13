@@ -8,19 +8,21 @@ use App\Models\Robot;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\View\View;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\StreamedResponse;
 use App\Services\Rms\JobTorqueSummary;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use App\Services\Rms\JobMonitorEvidenceSummary;
 
 /** New, read-only Job → Torque monitor. Existing RMS controllers stay untouched. */
 final class JobTorqueController extends Controller
 {
     private const TZ = 'Asia/Jakarta';
 
-    public function index(Request $request, Robot $robot, JobTorqueSummary $summary): View
+    public function index(Request $request, Robot $robot, JobTorqueSummary $summary, JobMonitorEvidenceSummary $evidence): View
     {
         $this->ensureSchema();
         $filters = $this->filters($request);
@@ -33,9 +35,61 @@ final class JobTorqueController extends Controller
             'robot' => $robot,
             'filters' => $filters,
             'report' => $report,
+            'jobEvidence' => $evidence->forRobot($robot, $report),
             'jobOptions' => $options,
             'exportUrl' => route('rms.robots.job-torque.export', array_merge(['robot' => $robot->id], $query)),
         ]);
+    }
+
+    /**
+     * Read-only, same-origin Job Torque reconciliation endpoint.
+     * probe=1 avoids expensive historical AVG/MAX SQL queries on every fallback poll.
+     * Full requests return server-rendered Blade markup; no telemetry is modified.
+     */
+    public function live(Request $request, Robot $robot, JobTorqueSummary $summary, JobMonitorEvidenceSummary $evidence): JsonResponse
+    {
+        $this->ensureSchema();
+        $latest = $robot->telemetrySamples()
+            ->orderByDesc('received_at')->orderByDesc('id')
+            ->first(['id', 'sampled_at', 'received_at']);
+
+        $now = now();
+        $ttl = max(5, min(300, (int) config('rms.telemetry_stale_seconds', 30)));
+        $sampleAge = $latest?->sampled_at ? $now->getTimestamp() - $latest->sampled_at->getTimestamp() : null;
+        $receivedAge = $latest?->received_at ? $now->getTimestamp() - $latest->received_at->getTimestamp() : null;
+        $fresh = $sampleAge !== null && $receivedAge !== null
+            && $sampleAge >= -5 && $receivedAge >= -5
+            && $sampleAge <= 60 && $receivedAge <= $ttl;
+        $meta = [
+            'robot_id' => (int) $robot->getKey(),
+            'sample_id' => $latest?->id,
+            'sampled_at' => $latest?->sampled_at?->toIso8601String(),
+            'received_at' => $latest?->received_at?->toIso8601String(),
+            'received_age_seconds' => $receivedAge === null ? null : max(0, $receivedAge),
+            'telemetry_fresh' => $fresh,
+            'server_time' => $now->toIso8601String(),
+            'stale_seconds' => $ttl,
+        ];
+
+        if ($request->query('probe') === '1') {
+            return response()->json($meta)->header('Cache-Control', 'private, no-store')
+                ->header('X-Content-Type-Options', 'nosniff');
+        }
+
+        $filters = $this->filters($request);
+        $report = $summary->forRobot($robot, $filters);
+        $jobEvidence = $evidence->forRobot($robot, $report);
+        $html = view('rms.robots.partials.job-torque-live-data', [
+            'report' => $report, 'filters' => $filters, 'jobEvidence' => $jobEvidence,
+        ])->render();
+
+        return response()->json([
+            ...$meta,
+            'html' => $html,
+            'job_options' => $summary->jobOptions($robot, $filters),
+            'job_read_status' => $jobEvidence['status'] ?? 'no_data',
+        ])->header('Cache-Control', 'private, no-store')
+            ->header('X-Content-Type-Options', 'nosniff');
     }
 
     public function export(Request $request, Robot $robot, JobTorqueSummary $summary): StreamedResponse
