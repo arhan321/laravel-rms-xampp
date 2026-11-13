@@ -22,7 +22,7 @@
     <div class="jt-header">
         <div>
             <h2>Job Monitoring — Pembacaan C# Collector</h2>
-            <p class="jt-muted">Snapshot pembacaan paling akhir, terpisah dari filter histori torque di bawah.</p>
+            <p class="jt-muted">Hasil baca job terbaru yang tersedia, terpisah dari filter histori torque di bawah.</p>
         </div>
         <span class="jt-read-status {{ $evidence['status'] }}" title="{{ $evidence['source'] }}">{{ $evidence['label'] }}</span>
     </div>
@@ -32,13 +32,20 @@
         <div class="jt-evidence-cell"><small>Job Step</small><strong>{{ $evidence['step'] ?? '—' }}</strong></div>
         <div class="jt-evidence-cell"><small>Speed Override</small><strong>{{ $evidence['speed_override_percent'] === null ? '—' : number_format((float) $evidence['speed_override_percent'], 1, ',', '.') . '%' }}</strong></div>
         <div class="jt-evidence-cell"><small>Controller Running (state SDK)</small><strong>{{ $evidence['controller_running'] === null ? 'UNKNOWN' : ($evidence['controller_running'] ? 'RUN' : 'NOT RUNNING') }}</strong></div>
-        <div class="jt-evidence-cell"><small>Sampled At (WIB)</small><strong style="font-size:13px">{{ $evidence['sampled_wib'] ?? '—' }}</strong></div>
-        <div class="jt-evidence-cell"><small>Received At (WIB)</small><strong style="font-size:13px">{{ $evidence['received_wib'] ?? '—' }}</strong></div>
-        <div class="jt-evidence-cell"><small>Umur Data</small><strong>{{ $evidence['received_age_seconds'] === null ? '—' : number_format($evidence['received_age_seconds'], 0, ',', '.') . ' detik' }}</strong></div>
+        <div class="jt-evidence-cell"><small>Job dibaca (WIB)</small><strong style="font-size:13px">{{ $evidence['sampled_wib'] ?? '—' }}</strong></div>
+        <div class="jt-evidence-cell"><small>Telemetry terakhir (WIB)</small><strong style="font-size:13px">{{ $evidence['telemetry_sampled_wib'] ?? '—' }}</strong></div>
+        <div class="jt-evidence-cell"><small>Umur pembacaan job</small><strong>{{ $evidence['sample_age_seconds'] === null ? '—' : number_format($evidence['sample_age_seconds'], 0, ',', '.') . ' detik' }}</strong></div>
     </div>
     <p class="jt-evidence-note"><strong>Last known job (historis):</strong> {{ $evidence['last_known_job']['name'] ?? 'Belum ada' }}{{ !empty($evidence['last_known_job']['sampled_wib']) ? ' · ' . $evidence['last_known_job']['sampled_wib'] : '' }}. Status RUN bukan bukti hitungan eksekusi job. Data STALE tidak boleh ditafsirkan sebagai posisi job saat ini.</p>
-    @if(! $evidence['envelope_present'])
-        <p class="jt-evidence-note">Metadata <code>raw_payload.job_monitor</code> belum ada pada sampel terakhir. Ini normal sebelum mode <code>RMS_JOB_MONITOR_EVERY_SAMPLE=1</code> diaktifkan atau ketika menggunakan collector lama.</p>
+    @if($evidence['status'] === 'stale')
+        <p class="jt-evidence-note">Belum ada bukti pembacaan job yang segar untuk robot ini. Periksa apakah telemetry baru masuk untuk robot ini dari collector.</p>
+    @elseif($evidence['status'] === 'not_polled')
+        <p class="jt-evidence-note">Telemetry tersedia, tetapi belum ada hasil baca job yang segar. Tunggu interval pembacaan job berikutnya.</p>
+    @elseif($evidence['status'] === 'invalid_job')
+        <p class="jt-evidence-note">SDK merespons, tetapi nama job kosong atau tidak valid.</p>
+    @endif
+    @if($evidence['sdk_status_code'] !== null)
+        <p class="jt-evidence-note"><strong>Status SDK pembacaan job:</strong> {{ $evidence['sdk_status_code'] }}{{ $evidence['sdk_status_message'] ? ' · ' . $evidence['sdk_status_message'] : '' }}</p>
     @endif
     @if($evidence['is_simulated'])
         <p class="jt-evidence-note">Data terakhir bersumber dari simulasi. Jangan disamakan dengan pembacaan robot DOJO sebenarnya.</p>

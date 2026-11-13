@@ -15,6 +15,16 @@ final class JobTextParser
     {
         $payload ??= [];
 
+        $monitor = $payload['job_monitor'] ?? null;
+        if (is_array($monitor)) {
+            $candidate = $monitor['job_name'] ?? null;
+            $name = ($monitor['read_ok'] ?? null) === true && ($monitor['read_status'] ?? null) === 'read_ok'
+                ? $this->clean(is_string($candidate) ? $candidate : null) : null;
+
+            return ['name' => $name, 'source' => $name === null ? null : 'raw_payload.job_monitor.job_name',
+                'verified' => false, 'raw_available' => true];
+        }
+
         foreach ([
             [$explicitName, 'telemetry.job_name'],
             [data_get($payload, 'job.name'), 'raw_payload.job.name'],
@@ -32,7 +42,7 @@ final class JobTextParser
         ];
 
         foreach ($texts as [$text, $source]) {
-            if (!is_string($text) || trim($text) === '' || strlen($text) > 8192) {
+            if (! is_string($text) || trim($text) === '' || strlen($text) > 8192) {
                 continue;
             }
 
@@ -68,7 +78,7 @@ final class JobTextParser
         }
 
         $pattern = '/(?:^|\R)\s*(?:Executing\s+)?(?:Job\s*Name|JobName|Job)\s*[:=]\s*(?:"([^"\r\n]{1,120})"|\'([^\'\r\n]{1,120})\'|([^\r\n]{1,120}))/i';
-        if (!preg_match($pattern, $text, $match)) {
+        if (! preg_match($pattern, $text, $match)) {
             return null;
         }
 
@@ -82,7 +92,7 @@ final class JobTextParser
         }
 
         $value = trim($value, " \t\n\r\0\x0B\"'");
-        $value = rtrim($value, ",;");
+        $value = rtrim($value, ',;');
         if ($value === '' || strlen($value) > 120 || preg_match('/[\x00-\x1F\x7F]/', $value)) {
             return null;
         }

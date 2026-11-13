@@ -107,7 +107,7 @@
 
     <div class="jt-note"><strong>Job terakhir teramati pada periode:</strong> {{ $report['last_tagged_job'] ?: 'Belum tersedia' }}{{ $report['last_tagged_at'] ? ' · ' . $report['last_tagged_at'] : '' }}. Ini adalah job terakhir dengan sampel torque bertanda job, <strong>bukan konfirmasi job yang sedang berjalan saat ini</strong>.</div>
 
-    <div class="jt-note"><strong>Catatan validitas:</strong> Job diambil dari nama yang dilaporkan collector, belum terverifikasi sebagai batas awal/akhir job. Collector membaca job lebih jarang daripada torque. Data torque yang tidak mempunyai job <strong>tidak dipaksakan ke job sebelumnya</strong>, sehingga AVG/MAX di bawah ini adalah statistik sampel yang teridentifikasi, bukan keseluruhan siklus produksi. Satuan <code>sdk_raw</code> belum boleh diklaim sebagai N·m atau ampere.</div>
+    <div class="jt-note"><strong>Catatan validitas:</strong> Job dan torque dibaca dengan panggilan SDK terpisah; pergantian job di antara panggilan masih mungkin. Histori dapat berisi tag lama. Sampel tanpa job <strong>tidak dipaksakan ke job sebelumnya</strong>. AVG/MAX dihitung dari sampel bertag dalam periode yang dipilih. Torque <code>sdk_raw</code> belum dikonversi ke N·m atau ampere.</div>
     @if($report['truncated'])
         <div class="jt-note jt-warning">Lebih dari {{ $report['max_jobs'] }} job teridentifikasi. Halaman dan CSV hanya menampilkan {{ $report['max_jobs'] }} teratas. Gunakan filter job atau periode lebih pendek.</div>
     @endif

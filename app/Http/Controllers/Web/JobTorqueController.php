@@ -11,11 +11,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\View\View;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\StreamedResponse;
 use App\Services\Rms\JobTorqueSummary;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use App\Services\Rms\JobMonitorEvidenceSummary;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /** New, read-only Job → Torque monitor. Existing RMS controllers stay untouched. */
 final class JobTorqueController extends Controller
@@ -98,14 +98,17 @@ final class JobTorqueController extends Controller
         $filters = $this->filters($request);
         $report = $summary->forRobot($robot, $filters);
         $filename = 'RMS_Job_Torque_Robot_'.$robot->id.'_'.now(self::TZ)->format('Ymd_His').'.csv';
+
         return response()->streamDownload(static function () use ($filters, $report, $robot): void {
             $stream = fopen('php://output', 'w');
-            if ($stream === false) return;
+            if ($stream === false) {
+                return;
+            }
             // BOM makes UTF-8 readable in Excel on local Windows workstations.
             fwrite($stream, "\xEF\xBB\xBF");
             fputcsv($stream, ['Robot', 'Job', 'Axis', 'Count valid axis', 'Sample Count Job',
                 'AVG', 'MAX', 'Mode', 'Unit', 'First (WIB)', 'Last (WIB)',
-                'Period Start (WIB)', 'Period End Exclusive (WIB)', 'Coverage (%)', 'Data Source / Caveat']);
+                'Period Start (WIB)', 'Period End Exclusive (WIB)', 'Coverage (%)', 'Data Source / Caveat'], escape: '');
             foreach (array_slice($report['groups'], 0, JobTorqueSummary::MAX_JOBS) as $group) {
                 foreach (JobTorqueSummary::AXES as $axis) {
                     $data = $group['axes'][$axis];
@@ -114,8 +117,8 @@ final class JobTorqueController extends Controller
                         $data['count'], $group['sample_count'], $data['average'], $data['maximum'],
                         $filters['mode'], $report['unit'], $group['first_at'], $group['last_at'],
                         $filters['from_label'], $filters['until_label'], $report['coverage_percent'],
-                        'Only directly job-tagged, non-simulated SDK raw torque samples; no job interpolation; unverified job name',
-                    ]);
+                        'RMS samples with job tags, including legacy tags; separate job and torque reads; no interpolation',
+                    ], escape: '');
                 }
             }
             fclose($stream);
@@ -183,6 +186,7 @@ final class JobTorqueController extends Controller
         // Inclusive last minute, same semantics as the existing Robot Logs.
         $untilExclusive = $toLocal->addMinute();
         $job = trim((string) ($v['job'] ?? ''));
+
         return [
             'preset' => $preset,
             'date' => $day,

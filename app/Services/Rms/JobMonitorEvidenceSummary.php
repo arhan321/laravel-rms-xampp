@@ -16,29 +16,41 @@ final class JobMonitorEvidenceSummary
 {
     public function forRobot(Robot $robot, array $torqueReport = []): array
     {
-        $latest = $robot->telemetrySamples()
-            ->orderByDesc('received_at')->orderByDesc('id')
-            ->first(['id', 'sampled_at', 'received_at', 'job_name', 'torque_ok', 'raw_payload']);
-
         $ttl = max(5, min(300, (int) config('rms.telemetry_stale_seconds', 30)));
-        $snapshot = self::interpret(
-            is_array($latest?->raw_payload) ? $latest->raw_payload : [],
-            $latest?->job_name,
-            $latest?->sampled_at?->toIso8601String(),
-            $latest?->received_at?->toIso8601String(),
-            now()->getTimestamp(),
-            $ttl
-        );
-        $snapshot['sample_id'] = $latest?->id;
-        $snapshot['torque_ok'] = (bool) $latest?->torque_ok;
-        $snapshot['ttl_seconds'] = $ttl;
+        $now = now()->getTimestamp();
+        $recent = $robot->telemetrySamples()
+            ->orderByDesc('sampled_at')->orderByDesc('id')
+            ->limit(24)
+            ->get(['id', 'sampled_at', 'received_at', 'job_name', 'raw_payload']);
+        $latest = $recent->first();
+        $snapshot = self::interpret([], null, null, null, $now, $ttl);
+        foreach ($recent as $sample) {
+            $candidate = self::interpret(
+                is_array($sample->raw_payload) ? $sample->raw_payload : [],
+                $sample->job_name,
+                $sample->sampled_at?->toIso8601String(),
+                $sample->received_at?->toIso8601String(),
+                $now,
+                $ttl
+            );
+            if ($sample->id === $latest->id) {
+                $snapshot = $candidate;
+                if (! in_array($candidate['status'], ['not_polled', 'no_data', 'legacy_tag_only'], true)) {
+                    break;
+                }
+            } elseif (in_array($candidate['status'], ['fresh', 'read_failed', 'invalid_job'], true)) {
+                $snapshot = $candidate;
+                break;
+            }
+        }
+        $snapshot['telemetry_sampled_wib'] = self::wib($latest?->sampled_at?->toIso8601String());
 
         // A last-known job is historical evidence, NEVER proof of the currently executing job.
         $lastJob = null;
         if ($latest !== null) {
             $candidates = $robot->telemetrySamples()
                 ->whereNotNull('job_name')
-                ->orderByDesc('received_at')->orderByDesc('id')
+                ->orderByDesc('sampled_at')->orderByDesc('id')
                 ->limit(20)
                 ->get(['job_name', 'sampled_at', 'raw_payload']);
             foreach ($candidates as $candidate) {
@@ -93,6 +105,7 @@ final class JobMonitorEvidenceSummary
             || ! is_numeric($sample->value_seconds) || (float) $sample->value_seconds < 0) {
             return null;
         }
+
         return number_format((float) $sample->value_seconds / 3600.0, 2, ',', '.').' jam (robot)';
     }
 
@@ -118,37 +131,44 @@ final class JobMonitorEvidenceSummary
         $readOk = $hasNewEnvelope
             ? (($envelope['read_ok'] ?? null) === true && ($envelope['read_status'] ?? null) === 'read_ok')
             : (($jobRead['read_ok'] ?? null) === true);
+        $legacyNotPolled = ($jobRead['status_code'] ?? null) === -1
+            && ($jobRead['message'] ?? null) === 'unavailable';
         $readFailed = $hasNewEnvelope
             ? (($envelope['read_status'] ?? null) === 'read_failed')
-            : (isset($jobRead['read_ok']) && $jobRead['read_ok'] === false);
+            : (($jobRead['read_ok'] ?? null) === false && ! $legacyNotPolled);
+        $attempted = $readOk || $readFailed || ($envelope['read_status'] ?? null) === 'invalid_job';
         $name = $readOk
             ? self::safeName($envelope['job_name'] ?? $job['name'] ?? $storedJob)
             : null;
         $sampleUnix = self::unix($sampledAt);
         $receivedUnix = self::unix($receivedAt);
+        $jobAt = $envelope['observed_at'] ?? null;
+        $jobAt = is_string($jobAt) ? $jobAt : $sampledAt;
+        $jobUnix = self::unix($jobAt);
+        $jobAge = $jobUnix === null ? null : $nowUnix - $jobUnix;
         $sampleAge = $sampleUnix === null ? null : $nowUnix - $sampleUnix;
         $receiveAge = $receivedUnix === null ? null : $nowUnix - $receivedUnix;
-        $fresh = $sampleAge !== null && $receiveAge !== null
+        $fresh = $sampleAge !== null && $receiveAge !== null && $jobAge !== null
             && $sampleAge >= -5 && $receiveAge >= -5
-            && $sampleAge <= 60 && $receiveAge <= max(5, $ttlSeconds);
+            && $jobAge >= -5 && $jobAge <= $ttlSeconds
+            && $sampleAge <= 60 && $receiveAge <= $ttlSeconds;
 
         $simulated = self::simulated($payload);
         $status = match (true) {
             $simulated => 'simulated',
+            $sampledAt !== null && ! $fresh => 'stale',
             $readFailed => 'read_failed',
             $readOk && $name !== null && $fresh => 'fresh',
-            $readOk && $name !== null => 'stale',
-            $hasNewEnvelope && ($envelope['read_status'] ?? null) === 'not_polled' => 'not_polled',
-            $readOk => 'invalid_job',
+            $readOk || ($envelope['read_status'] ?? null) === 'invalid_job' => 'invalid_job',
             $envelope !== null || $jobRead !== [] => 'not_polled',
             self::safeName($storedJob) !== null => 'legacy_tag_only',
             default => 'no_data',
         };
         $labels = [
             'fresh' => 'FRESH · JOB READ OK',
-            'stale' => 'STALE · LAST READ',
+            'stale' => 'DATA LAMA · STALE',
             'read_failed' => 'JOB READ FAILED',
-            'not_polled' => 'NOT POLLED',
+            'not_polled' => 'JOB BELUM DIBACA',
             'invalid_job' => 'JOB NAME INVALID',
             'legacy_tag_only' => 'LEGACY TAG ONLY',
             'simulated' => 'DEMO / SIMULATED',
@@ -160,7 +180,8 @@ final class JobMonitorEvidenceSummary
         $step = $details ? self::nonNegativeInteger($envelope['step'] ?? $job['step'] ?? null) : null;
         $override = $details ? self::finiteNumber($envelope['speed_override_percent'] ?? $job['speed_override_percent'] ?? null) : null;
         $state = is_array($payload['controller_state'] ?? null) ? $payload['controller_state'] : [];
-        $running = $details ? ($envelope['controller_running'] ?? $state['running'] ?? null) : null;
+        $running = $fresh && ! $simulated
+            ? ($envelope['controller_running'] ?? $state['running'] ?? null) : null;
         $running = is_bool($running) ? $running : null;
 
         return [
@@ -175,10 +196,12 @@ final class JobMonitorEvidenceSummary
             'read_ok' => $readOk && ! $simulated,
             'envelope_present' => $hasNewEnvelope,
             'source' => $hasNewEnvelope ? 'C# raw_payload.job_monitor' : 'Legacy raw_payload.job / job_read',
-            'sampled_wib' => self::wib($sampledAt),
+            'sampled_wib' => $attempted ? self::wib($jobAt) : null,
             'received_wib' => self::wib($receivedAt),
-            'sample_age_seconds' => $sampleAge === null ? null : max(0, $sampleAge),
+            'sample_age_seconds' => ! $attempted || $jobAge === null ? null : max(0, $jobAge),
             'received_age_seconds' => $receiveAge === null ? null : max(0, $receiveAge),
+            'sdk_status_code' => $attempted ? ($envelope['status_code'] ?? $jobRead['status_code'] ?? null) : null,
+            'sdk_status_message' => $readFailed ? ($envelope['status_message'] ?? $jobRead['message'] ?? null) : null,
         ];
     }
 
@@ -191,6 +214,7 @@ final class JobMonitorEvidenceSummary
         if ($name === '' || strlen($name) > 120 || preg_match('/[\x00-\x1F\x7F]/', $name)) {
             return null;
         }
+
         return $name;
     }
 
@@ -201,10 +225,11 @@ final class JobMonitorEvidenceSummary
 
     private static function nonNegativeInteger(mixed $value): ?int
     {
-        if (! is_int($value) && !(is_string($value) && ctype_digit($value))) {
+        if (! is_int($value) && ! (is_string($value) && ctype_digit($value))) {
             return null;
         }
         $number = (int) $value;
+
         return $number >= 0 ? $number : null;
     }
 
@@ -213,6 +238,7 @@ final class JobMonitorEvidenceSummary
         if (! is_numeric($value) || ! is_finite((float) $value)) {
             return null;
         }
+
         return (float) $value;
     }
 
