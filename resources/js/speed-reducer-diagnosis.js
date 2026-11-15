@@ -7,6 +7,7 @@
   const find = key => panel.querySelector('[data-sr-' + key + ']');
   const group = find('group');
   const axis = find('axis');
+  const source = find('source');
   const status = find('status');
   const buttons = [...panel.querySelectorAll('[data-sr-mode]')];
   const colors = {
@@ -19,9 +20,15 @@
   const dates = new Intl.DateTimeFormat('id-ID', {day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC'});
   const DAY = 86400000;
   const NS = 'http://www.w3.org/2000/svg';
-  let rows = [];
+  let telemetryRows = [];
+  let oemRows = [];
+  let inspectionRows = [];
   let mode = 'measurement_pct';
   let pending = null;
+  const pageParams = new URL(window.location.href).searchParams;
+  const requestedGroup = pageParams.get('reducer_group');
+  const initialGroup = /^[RS][1-9][0-9]?$/.test(requestedGroup ?? '') ? requestedGroup : undefined;
+  let openOemOnLoad = pageParams.get('reducer_source') === 'oem';
 
   function svgEl(name, attrs, label) {
     const node = document.createElementNS(NS, name);
@@ -37,7 +44,7 @@
 
   function draw(chart, empty, selected, opts) {
     const points = selected.flatMap(row => {
-      const x = opts.life ? number(row.operating_hours) : day(row.date_wib);
+      const x = opts.hoursAxis ? number(row.operating_hours) : day(row.date_wib);
       const y = number(row[opts.field]);
       return x !== null && Number.isFinite(x) && y !== null ? [{x, y, row}] : [];
     });
@@ -45,7 +52,7 @@
     chart.toggleAttribute('hidden', !points.length);
     empty.hidden = points.length > 0;
     if (!points.length) {
-      empty.textContent = 'Belum ada hasil diagnosis untuk pilihan ini.';
+      empty.textContent = opts.empty;
       return;
     }
 
@@ -55,11 +62,11 @@
     const limits = capturedLimits ? opts.limits.map(([key, label]) => [number(capturedLimits[key]), label])
       .filter(([value]) => value !== null) : [];
     const xValues = points.map(p => p.x);
-    let xMin = opts.life ? 0 : Math.min(...xValues);
+    let xMin = opts.hoursAxis ? 0 : Math.min(...xValues);
     let xMax = Math.max(...xValues);
     if (xMin === xMax) {
-      if (!opts.life) xMin -= DAY;
-      xMax += opts.life ? 1 : DAY;
+      if (!opts.hoursAxis) xMin -= DAY;
+      xMax += opts.hoursAxis ? 1 : DAY;
     }
     const yValues = points.map(p => p.y).concat(limits.map(([value]) => value));
     const yMin = opts.field === 'variation_pp' ? Math.min(...yValues, 0) : 0;
@@ -77,17 +84,17 @@
       x, y, 'text-anchor': align, 'font-size': '11', fill: '#3b556a',
     }, labelText);
 
-    chart.append(label(pad.left, 16, opts.yLabel), label(280, 264, opts.life ? 'Jam operasi (h)' : 'Tanggal (WIB)', 'middle'));
+    chart.append(label(pad.left, 16, opts.yLabel), label(280, 264, opts.hoursAxis ? 'Jam operasi (h)' : 'Tanggal (WIB)', 'middle'));
     for (let i = 0; i <= 4; i++) {
       const value = yMin + (yMax - yMin) * i / 4;
       chart.append(line(pad.left, py(value), pad.left + w, py(value), '#dbe5ed'),
         label(pad.left - 8, py(value) + 4, numbers.format(value), 'end'));
     }
-    const ticks = opts.life ? 4 : Math.min(4, Math.floor((xMax - xMin) / DAY));
+    const ticks = opts.hoursAxis ? 4 : Math.min(4, Math.floor((xMax - xMin) / DAY));
     for (let i = 0; i <= ticks; i++) {
       let value = xMin + (xMax - xMin) * i / ticks;
-      if (!opts.life) value = Math.round(value / DAY) * DAY;
-      chart.append(label(px(value), 241, opts.life ? numbers.format(value) : dateLabel(value), 'middle'));
+      if (!opts.hoursAxis) value = Math.round(value / DAY) * DAY;
+      chart.append(label(px(value), 241, opts.hoursAxis ? numbers.format(value) : dateLabel(value), 'middle'));
     }
 
     for (const [value, name] of limits) {
@@ -110,42 +117,75 @@
       }
       for (const p of readings) {
         const marker = svgEl('circle', {cx: px(p.x), cy: py(p.y), r: '2.7', fill: colors[key]});
-        const xLabel = opts.life ? format(p.x) + ' jam operasi' : dateLabel(p.x);
-        marker.append(svgEl('title', {}, [key, xLabel, format(p.y) + ' ' + opts.unit, p.row.source_reference].join(' · ')));
+        const xLabel = opts.hoursAxis ? format(p.x) + ' jam operasi' : dateLabel(p.x);
+        const details = [key, xLabel, format(p.y) + ' ' + opts.unit, p.row.source_reference];
+        if (p.row.sample_count != null) details.push(format(p.row.sample_count) + ' sampel');
+        marker.append(svgEl('title', {}, details.join(' · ')));
         chart.append(marker);
       }
     }
   }
 
   function render() {
-    const selected = rows.filter(row => axis.value === '' || row.axis === axis.value);
+    const isOem = source.value === 'oem';
+    const forAxis = row => axis.value === '' || row.axis === axis.value;
+    const selected = (isOem ? oemRows : telemetryRows).filter(forAxis);
     const variation = mode === 'variation_pp';
+    const measurementField = isOem ? 'measurement_pct' : 'measurement_sdk_raw';
+    const variationField = isOem ? 'variation_pp' : 'variation_sdk_raw';
+    const measurementUnit = isOem ? '%' : 'SDK raw';
+    const variationUnit = isOem ? 'poin %' : 'SDK raw';
+    find('trend-caption').textContent = isOem
+      ? 'Measurement dan Variation dari diagnosis Yaskawa yang tersimpan.'
+      : '30 hari WIB · Measurement = rata-rata |torque| · Variation = maksimum − minimum |torque| (min. 2 sampel).';
     draw(find('trend'), find('trend-empty'), selected, {
-      field: mode, yLabel: variation ? 'Variation (poin %)' : 'Torque (% rated)',
-      unit: variation ? 'poin %' : '%',
-      limits: variation ? [['variation_lower_pp', 'Batas bawah'], ['variation_upper_pp', 'Batas atas']] : null,
+      field: variation ? variationField : measurementField,
+      yLabel: variation ? 'Variation (' + variationUnit + ')' : 'Torque (' + measurementUnit + ')',
+      unit: variation ? variationUnit : measurementUnit,
+      limits: isOem && variation ? [['variation_lower_pp', 'Batas bawah'], ['variation_upper_pp', 'Batas atas']] : null,
+      empty: isOem ? 'Belum ada hasil diagnosis untuk pilihan ini.'
+        : variation ? 'Variation membutuhkan minimal dua sampel torque valid pada satu tanggal.'
+          : 'Belum ada telemetry torque valid untuk pilihan ini dalam 30 hari.',
     });
-    draw(find('life'), find('life-empty'), selected, {
-      life: true, field: 'remaining_life_hours', yLabel: 'Sisa umur (h)', unit: 'jam',
-      limits: [['life_lower_hours', 'Batas bawah'], ['life_upper_hours', 'Batas atas']],
+    const oemLife = oemRows.filter(row =>
+      forAxis(row) && number(row.operating_hours) !== null && number(row.remaining_life_hours) !== null);
+    const inspectionLife = inspectionRows.filter(forAxis);
+    const hoursAxis = oemLife.length > 0 && (isOem || inspectionLife.length === 0);
+    const life = hoursAxis ? oemLife : inspectionLife;
+    find('life-caption').textContent = hoursAxis
+      ? 'Sisa umur terhadap jam operasi dari diagnosis Yaskawa.'
+      : 'Sisa umur terhadap tanggal pemeriksaan dari bukti inspeksi terverifikasi.';
+    draw(find('life'), find('life-empty'), life, {
+      life: true, hoursAxis, field: 'remaining_life_hours', yLabel: 'Sisa umur (h)', unit: 'jam',
+      limits: hoursAxis ? [['life_lower_hours', 'Batas bawah'], ['life_upper_hours', 'Batas atas']] : null,
+      empty: 'Belum ada data sisa umur terverifikasi untuk pilihan ini.',
     });
 
     const latest = new Map(selected.map(row => [row.axis, row]));
+    const plottedAxes = new Set([...latest.keys(), ...life.map(row => row.axis)]);
     find('evidence').hidden = latest.size === 0;
+    find('measurement-heading').textContent = 'Measurement (' + measurementUnit + ')';
+    find('variation-heading').textContent = 'Variation (' + variationUnit + ')';
+    find('count-heading').hidden = isOem;
+    find('operating-heading').hidden = !isOem;
+    find('life-heading').hidden = !isOem;
     find('legend').replaceChildren();
     find('evidence-rows').replaceChildren();
     for (const key of order) {
+      if (plottedAxes.has(key)) {
+        const legend = document.createElement('span');
+        const swatch = document.createElement('i');
+        swatch.style.backgroundColor = colors[key];
+        legend.append(swatch, key);
+        find('legend').append(legend);
+      }
       const row = latest.get(key);
       if (!row) continue;
-      const legend = document.createElement('span');
-      const swatch = document.createElement('i');
-      swatch.style.backgroundColor = colors[key];
-      legend.append(swatch, key);
-      find('legend').append(legend);
       const tr = document.createElement('tr');
       for (const value of [
-        key, String(row.date_wib).slice(0, 10), format(row.measurement_pct), format(row.variation_pp),
-        format(row.operating_hours), format(row.remaining_life_hours), row.source_reference,
+        key, String(row.date_wib).slice(0, 10), format(row[measurementField]), format(row[variationField]),
+        ...(isOem ? [format(row.operating_hours), format(row.remaining_life_hours)] : [format(row.sample_count)]),
+        row.source_reference,
       ]) {
         const td = document.createElement('td');
         td.textContent = value;
@@ -155,35 +195,58 @@
     }
   }
 
-  async function load(selectedGroup) {
+  async function load(selectedGroup, refresh = false) {
+    if (refresh && pending) return;
     pending?.abort();
     const request = new AbortController();
     pending = request;
     const url = new URL(panel.dataset.speedReducerUrl, window.location.href);
     if (selectedGroup) url.searchParams.set('group', selectedGroup);
-    status.textContent = 'Memuat hasil diagnosis…';
-    rows = [];
-    axis.disabled = true;
-    render();
+    if (!refresh) {
+      status.textContent = 'Memuat data reducer…';
+      axis.disabled = true;
+      source.disabled = true;
+      telemetryRows = [];
+      oemRows = [];
+      inspectionRows = [];
+      render();
+    }
     try {
       const response = await fetch(url, {headers: {'Accept': 'application/json'}, signal: request.signal});
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
       if (pending !== request) return;
-      group.replaceChildren(...data.groups.map(key => new Option(key, key)));
+      if (!refresh || [...group.options].map(option => option.value).join(',') !== data.groups.join(',')) {
+        group.replaceChildren(...data.groups.map(key => new Option(key, key)));
+      }
       group.value = data.group;
       group.disabled = data.groups.length < 2;
-      rows = data.rows;
-      const available = new Set(rows.map(row => row.axis));
-      axis.replaceChildren(new Option('Semua axis', ''), ...order.filter(key => available.has(key)).map(key => new Option(key, key)));
+      const previousSource = source.value;
+      telemetryRows = data.telemetry_rows ?? [];
+      oemRows = data.rows ?? [];
+      inspectionRows = data.inspection_life_rows ?? [];
+      const telemetryAvailable = data.group === 'R1';
+      source.options[0].disabled = !telemetryAvailable;
+      source.options[1].disabled = !oemRows.length && telemetryAvailable;
+      source.disabled = source.options[0].disabled || source.options[1].disabled;
+      source.value = !telemetryAvailable || (oemRows.length && (openOemOnLoad || (refresh && previousSource === 'oem')))
+        ? 'oem' : 'telemetry';
+      openOemOnLoad = false;
+      const available = new Set([...telemetryRows, ...oemRows, ...inspectionRows].map(row => row.axis));
+      const axisOptions = order.filter(key => available.has(key));
+      if (!refresh || [...axis.options].slice(1).map(option => option.value).join(',') !== axisOptions.join(',')) {
+        const previousAxis = refresh ? axis.value : '';
+        axis.replaceChildren(new Option('Semua axis', ''), ...axisOptions.map(key => new Option(key, key)));
+        axis.value = available.has(previousAxis) ? previousAxis : '';
+      }
       axis.disabled = available.size === 0;
-      status.textContent = rows.length ? format(rows.length) + ' catatan diagnosis · ' + data.group : 'Belum ada hasil diagnosis Yaskawa untuk grup ini.';
+      status.textContent = data.group;
       render();
     } catch (error) {
       if (pending !== request || error.name === 'AbortError') return;
-      status.textContent = 'Hasil diagnosis tidak dapat dimuat. Muat ulang halaman untuk mencoba lagi.';
-      find('trend-empty').textContent = 'Grafik tidak dapat dimuat.';
-      find('life-empty').textContent = 'Grafik tidak dapat dimuat.';
+      status.textContent = 'Data reducer gagal dimuat. RMS akan mencoba lagi.';
+    } finally {
+      if (pending === request) pending = null;
     }
   }
 
@@ -199,5 +262,9 @@
   }
   group.addEventListener('change', () => load(group.value));
   axis.addEventListener('change', render);
-  load();
+  source.addEventListener('change', render);
+  load(initialGroup);
+  window.setInterval(() => {
+    if (!document.hidden) load(group.value && group.value !== '—' ? group.value : initialGroup, true);
+  }, 30000);
 })();

@@ -147,7 +147,7 @@ $axisStateLabels = [
 <script>
 window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
-<script src="{{ asset('rms/js/speed-reducer-diagnosis.js') }}?v=2" defer></script>
+<script src="{{ asset('rms/js/speed-reducer-diagnosis.js') }}?v=4" defer></script>
 <script src="{{ asset('rms/js/cockpit.js') }}?v=20261028-servo-current" defer></script>
 @endsection
 

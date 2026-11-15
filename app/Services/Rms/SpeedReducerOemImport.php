@@ -23,7 +23,8 @@ final class SpeedReducerOemImport
         'variation_lower_pp', 'variation_upper_pp', 'life_lower_hours', 'life_upper_hours',
     ];
 
-    public function store(int $robotId, string $csv, string $sourceReference, string $verifiedBy): int
+    /** @return array{count: int, first_group: string} */
+    public function store(int $robotId, string $csv, string $sourceReference, string $verifiedBy): array
     {
         $lines = preg_split('/\r\n|\n|\r/', trim($csv));
         $header = $this->split(preg_replace('/^\xEF\xBB\xBF/', '', array_shift($lines)));
@@ -116,7 +117,10 @@ final class SpeedReducerOemImport
             }
         });
 
-        return count($rows);
+        return [
+            'count' => count($rows),
+            'first_group' => $rows[array_key_first($rows)]['control_group'],
+        ];
     }
 
     /** @return list<string> */
