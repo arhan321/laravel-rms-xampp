@@ -1,0 +1,147 @@
+.steel-section {
+    margin-bottom: 20px;
+}
+
+.steel-section .panel-header h2 {
+    margin: 0;
+}
+
+.steel-section .panel-header span,
+.steel-help,
+.steel-table td span,
+.steel-table tbody th span {
+    color: #53675d;
+}
+
+.steel-empty,
+.steel-feedback {
+    margin: 14px 0;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: #edf5ef;
+    color: #28543e;
+}
+
+.steel-feedback-error {
+    background: #fff1ee;
+    color: #892e22;
+}
+
+.steel-feedback ul {
+    margin-bottom: 0;
+}
+
+.steel-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.steel-reference,
+.steel-help {
+    margin: 16px 0;
+}
+
+.steel-table-wrap {
+    overflow-x: auto;
+}
+
+.steel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.steel-table thead {
+    background: #eff5f1;
+}
+
+.steel-table th,
+.steel-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e1ebe4;
+    vertical-align: top;
+}
+
+.steel-entry th:first-child {
+    width: 52px;
+}
+
+.steel-entry input {
+    width: 100%;
+}
+
+.steel-history td,
+.steel-history tbody th {
+    min-width: 95px;
+    overflow-wrap: anywhere;
+}
+
+.steel-history td:nth-last-child(-n+2) {
+    min-width: 160px;
+}
+
+.steel-history td a {
+    color: #236346;
+    text-decoration: underline;
+}
+
+.steel-table td span,
+.steel-table tbody th span {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.steel-table td .steel-warning {
+    color: #a13526;
+    font-weight: 700;
+}
+
+.steel-chart {
+    margin-top: 16px;
+}
+
+.steel-chart svg {
+    display: block;
+    width: 100%;
+    max-width: 1200px;
+    height: auto;
+    min-width: 500px;
+}
+
+.steel-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    color: #384b42;
+    font-size: 12px;
+}
+
+.steel-legend span::before {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: var(--series-color);
+    content: "";
+}
+
+.steel-legend .steel-legend-warning::before {
+    background: transparent;
+    border: 2px solid var(--series-color);
+}
+
+@media (max-width: 620px) {
+    .steel-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .steel-table th,
+    .steel-table td {
+        padding: 8px;
+    }
+}

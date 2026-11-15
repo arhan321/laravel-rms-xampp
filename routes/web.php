@@ -54,23 +54,25 @@ use App\Http\Controllers\Web\HardwareController;
 use App\Http\Controllers\Web\RobotLogController;
 use App\Http\Controllers\Web\AnalyticsController;
 use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\SteelDustController;
 use App\Http\Controllers\Web\ConnectionController;
 use App\Http\Controllers\Web\RobotGroupController;
 use App\Http\Controllers\Web\CockpitLiveController;
 use App\Http\Controllers\Web\MaintenanceController;
 use App\Http\Controllers\Web\NotificationController;
 use App\Http\Controllers\Web\ServoCurrentController;
+use App\Http\Controllers\Web\AlarmFollowUpController;
 use App\Http\Controllers\Web\RobotIdentityController;
-use App\Http\Controllers\Web\EncoderMonitorController;
 // ============================================================
 // RMS HEALTH INTELLIGENCE CONTROLLER
 // ============================================================
 
+use App\Http\Controllers\Web\EncoderMonitorController;
 use App\Http\Controllers\Web\RecommendationController;
 use App\Http\Controllers\Web\RmsConfigurationController;
-use App\Http\Controllers\Web\SpeedReducerCockpitController;
 use App\Http\Controllers\Web\HealthIntelligenceController;
 use App\Http\Controllers\Web\AlarmCountermeasureController;
+use App\Http\Controllers\Web\SpeedReducerCockpitController;
 
 // ============================================================
 // 1. HOME
@@ -264,6 +266,21 @@ Route::prefix('rms')
             'index',
         ])->name('alarms.index');
 
+        Route::prefix('alarms/{kind}/{record}/fui')
+            ->where(['kind' => 'history|event', 'record' => '[0-9]+'])
+            ->name('alarms.fui.')
+            ->group(function (): void {
+                Route::get('/', [AlarmFollowUpController::class, 'show'])->name('show');
+                Route::get('/pdf', [AlarmFollowUpController::class, 'download'])->middleware('throttle:30,1')->name('pdf');
+                Route::middleware('throttle:20,1')->group(function (): void {
+                    Route::post('/', [AlarmFollowUpController::class, 'store'])->name('store');
+                    Route::patch('/', [AlarmFollowUpController::class, 'update'])->name('update');
+                    Route::post('/refresh', [AlarmFollowUpController::class, 'refresh'])->name('refresh');
+                    Route::post('/signature', [AlarmFollowUpController::class, 'sign'])->name('signature');
+                    Route::post('/reopen', [AlarmFollowUpController::class, 'reopen'])->name('reopen');
+                });
+            });
+
         Route::prefix('alarms/{kind}/{record}/countermeasures')
             ->where(['kind' => 'history|event|snapshot', 'record' => '[0-9]+'])
             ->name('alarms.countermeasures.')
@@ -285,6 +302,11 @@ Route::prefix('rms')
             MaintenanceController::class,
             'index',
         ])->name('maintenance.index');
+
+        Route::get('/maintenance/steel-dust', [SteelDustController::class, 'index'])
+            ->name('maintenance.steel-dust.index');
+        Route::post('/maintenance/steel-dust/{robot}', [SteelDustController::class, 'store'])
+            ->whereNumber('robot')->middleware('throttle:20,1')->name('maintenance.steel-dust.store');
 
         // Operator-friendly preventive maintenance (NO login / NO verification).
         // CSRF is applied by Laravel web middleware; writes are rate-limited.

@@ -44,8 +44,15 @@
     </label>
     <button class="btn primary" type="submit">Filter</button>
     <a class="btn" href="{{ route('rms.maintenance.index') }}">Reset</a>
+    <a class="btn" href="{{ route('rms.maintenance.steel-dust.index', array_filter(['robot_id' => $filter['robot_id'] ?? null])) }}">Steel Dust Monitoring</a>
   </form>
 </div>
+
+@if(isset($filter['plan_id']))
+  <p class="pm-hint">Menampilkan jadwal PM #{{ $filter['plan_id'] }}.
+    <a href="{{ route('rms.maintenance.index', array_filter(['robot_id' => $filter['robot_id'] ?? null])) }}">Lihat semua jadwal</a>
+  </p>
+@endif
 
 @if($categoryOverview !== [])
 @php
@@ -173,12 +180,15 @@
   <div class="rms-pm-grid">
   @forelse($plans as $plan)
     @php($due = $dueStatuses[$plan->id] ?? ['due'=>false,'verified_operating_hours'=>null,'hours_remaining'=>null,'sampled_at'=>null])
-    <article class="pm-card {{ $due['due'] ? 'due' : '' }} pm-operator-card">
+    <article id="maintenance-plan-{{ $plan->id }}" class="pm-card {{ $due['due'] ? 'due' : '' }} pm-operator-card">
       <div class="between">
         <span class="badge rms-badge {{ !$plan->is_active ? 'unknown' : ($due['due'] ? 'warning' : 'connected') }}">{{ !$plan->is_active ? 'INACTIVE' : ($due['due'] ? 'DUE' : 'SCHEDULED') }}</span>
         <span class="mono">#{{ $plan->id }}</span>
       </div>
       <h3>{{ $plan->title }}</h3>
+      @if(in_array($plan->component_category, ['steel_dust', 'inspection'], true))
+        <a class="btn" href="{{ route('rms.maintenance.steel-dust.index', ['robot_id' => $plan->robot_id, 'plan_id' => $plan->id]) }}">Pemeriksaan Steel Dust</a>
+      @endif
       @if($plan->component_category)<p class="pm-hint">Kategori: {{ $componentCategories[$plan->component_category] ?? $plan->component_category }}</p>@endif
       <p>{{ $plan->description ?: 'Belum ada deskripsi pekerjaan' }}</p>
       @if($plan->component_axis || $plan->grease_specification)

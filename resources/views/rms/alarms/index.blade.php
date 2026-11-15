@@ -153,7 +153,7 @@
               <td>{{ $e->alarm_name ?: 'Belum diketahui' }}</td>
               <td>{{ $e->severity ?: '—' }}</td>
               <td><span class="badge rms-badge {{ $e->status }}">{{ strtoupper($e->status) }}</span></td>
-              <td>@if($e->alarm_code !== null && $e->alarm_code !== '')<a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'event', 'record' => $e->id]) }}">Lihat penanganan</a>@else — @endif</td>
+              <td>@if($e->alarm_code !== null && $e->alarm_code !== '')<a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'event', 'record' => $e->id]) }}">Lihat penanganan</a> <a class="btn" href="{{ route('rms.alarms.fui.show', ['event', $e->id]) }}">FUI</a>@else — @endif</td>
             </tr>
           @endforeach
         </tbody>
@@ -168,7 +168,7 @@
   <div class="panel-header"><div><h2>YMConnect Controller Alarm History</h2><p>Kategori dibaca langsung dari histori controller; waktu controller disimpan sebagai teks asli.</p></div><span class="rms-muted-small">{{ $historyEntries->total() }} record unik</span></div>
   <div class="table-wrap"><table class="data-table"><thead><tr><th>Robot</th><th>Kategori</th><th>Kode / subcode</th><th>Nama</th><th>Waktu controller (raw)</th><th>Pertama terambil (WIB)</th><th>Penanganan</th></tr></thead><tbody>
     @forelse($historyEntries as $entry)
-      <tr><td>{{ $entry->robot?->robot_code ?? '—' }}</td><td>{{ $entry->category }}</td><td>{{ $entry->alarm_code }} / {{ $entry->subcode ?? '—' }}</td><td>{{ $entry->alarm_name }}</td><td>{{ $entry->controller_time_raw }}</td><td>{{ $entry->first_observed_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s') }}</td><td><a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'history', 'record' => $entry->id]) }}">Lihat / isi penanganan</a></td></tr>
+      <tr><td>{{ $entry->robot?->robot_code ?? '—' }}</td><td>{{ $entry->category }}</td><td>{{ $entry->alarm_code }} / {{ $entry->subcode ?? '—' }}</td><td>{{ $entry->alarm_name }}</td><td>{{ $entry->controller_time_raw }}</td><td>{{ $entry->first_observed_at?->timezone('Asia/Jakarta')->format('d M Y H:i:s') }}</td><td><a class="btn" href="{{ route('rms.alarms.countermeasures.show', ['kind' => 'history', 'record' => $entry->id]) }}">Lihat / isi penanganan</a> <a class="btn" href="{{ route('rms.alarms.fui.show', ['history', $entry->id]) }}">FUI</a></td></tr>
     @empty<tr><td colspan="7">Belum ada entri histori yang dapat diidentifikasi. Cek status pembacaan kategori pada snapshot raw.</td></tr>@endforelse
   </tbody></table></div>
   <div class="rms-pagination">{{ $historyEntries->links() }}</div>

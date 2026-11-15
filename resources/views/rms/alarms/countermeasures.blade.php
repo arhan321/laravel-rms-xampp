@@ -13,6 +13,9 @@
 <div class="rms-cm-toolbar">
   <a class="btn" href="{{ route('rms.alarms.index', ['robot_id' => $context['robot_id'], 'search' => $context['alarm_code']]) }}">← Alarm center</a>
   <a class="btn" href="{{ route('rms.robots.show', $context['robot']) }}">Detail robot</a>
+  @if(in_array($context['kind'], ['event', 'history'], true))
+    <a class="btn" href="{{ route('rms.alarms.fui.show', [$context['kind'], $context['record']]) }}">Follow Up Instruction</a>
+  @endif
   @if($writesEnabled)
     <a class="btn primary" href="{{ $baseUrl }}#countermeasure-form">+ Pengalaman jalur</a>
     <a class="btn" href="{{ route('rms.alarms.countermeasures.show', [...$routeParams, 'source' => 'yaskawa_manual']) }}#countermeasure-form">+ Referensi Yaskawa</a>

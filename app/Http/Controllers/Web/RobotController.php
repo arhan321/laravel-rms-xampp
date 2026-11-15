@@ -148,6 +148,8 @@ class RobotController extends BaseRmsWebController
                     'robot_anomaly_events',
                     'robot_predictions',
                     'robot_threshold_events',
+                    'robot_alarm_follow_ups',
+                    'robot_steel_dust_inspections',
                     'maintenance_logs',
                     'maintenance_recommendations',
                     'maintenance_plans',

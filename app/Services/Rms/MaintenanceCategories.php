@@ -8,6 +8,7 @@ final class MaintenanceCategories
 {
     public const LABELS = [
         'inspection' => 'Inspection',
+        'steel_dust' => 'Steel Dust',
         'grease_supply' => 'Grease supply',
         'grease_exchange' => 'Grease exchange',
         'cover_contact_lead' => 'Cover / contact / lead',

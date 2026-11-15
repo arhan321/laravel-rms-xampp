@@ -49,6 +49,11 @@ final class AlarmCountermeasureContext
             'alarm_name' => (string) ($alarm['alarm_name'] ?? ''),
             'controller_time_raw' => $alarm['controller_time_raw'] ?? null,
             'category' => $kind === 'history' ? $entry->category : null,
+            'observed_at' => (match ($kind) {
+                'history' => $entry->first_observed_at,
+                'event' => $entry->started_at,
+                'snapshot' => $entry->sampled_at,
+            })?->utc()->format('Y-m-d\TH:i:s.vP'),
         ];
     }
 

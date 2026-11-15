@@ -1,0 +1,16 @@
+.fui-section { margin: 16px 0; }
+.fui-section summary { cursor: pointer; color: #265e49; }
+.fui-section p { margin: 6px 0 12px; }
+.fui-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.fui-form { display: grid; gap: 14px; justify-items: start; margin-top: 12px; }
+.fui-form .fui-grid { width: 100%; }
+.fui-inline { display: flex; flex-wrap: wrap; align-items: end; }
+.fui-source { border: 1px solid #dbe6de; border-radius: 12px; padding: 14px; min-width: 0; }
+.fui-source article { margin-top: 12px; }
+.fui-muted { color: #50665b; font-size: 12px; }
+.fui-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fui-stage-list { padding-inline-start: 22px; line-height: 1.75; }
+.fui-table-wrap { overflow-x: auto; }
+.fui-table-wrap .data-table { min-width: 580px; margin-top: 12px; }
+.fui-form canvas { width: min(100%, 540px); height: auto; background: #fff; border: 1px solid #9db5a6; border-radius: 8px; touch-action: none; }
+@media (max-width: 720px) { .fui-grid { grid-template-columns: 1fr; } }

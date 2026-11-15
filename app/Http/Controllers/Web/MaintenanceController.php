@@ -31,12 +31,17 @@ class MaintenanceController extends BaseRmsWebController
         $filter = $request->validate([
             'robot_id' => ['nullable', 'integer', 'exists:robots,id'],
             'active' => ['nullable', 'in:all,yes,no'],
+            'plan_id' => ['nullable', 'integer', 'min:1'],
         ]);
         $plansQuery = MaintenancePlan::query()->with('robot');
         $logsQuery = MaintenanceLog::query()->with(['robot', 'maintenancePlan']);
         if (!empty($filter['robot_id'])) {
             $plansQuery->where('robot_id', $filter['robot_id']);
             $logsQuery->where('robot_id', $filter['robot_id']);
+        }
+        if (isset($filter['plan_id'])) {
+            $plansQuery->whereKey($filter['plan_id']);
+            $logsQuery->where('maintenance_plan_id', $filter['plan_id']);
         }
         if (($filter['active'] ?? 'all') === 'yes') {
             $plansQuery->where('is_active', true);
