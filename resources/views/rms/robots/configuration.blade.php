@@ -69,6 +69,7 @@
     <a href="#technical-guide"><span>01</span> Technician Guide</a>
     <a href="#threshold-config"><span>02</span> Torque Threshold</a>
     <a href="#reducer-config"><span>03</span> Speed Reducer Evidence</a>
+    <a href="#speed-reducer-oem"><span>04</span> Impor hasil Yaskawa</a>
   </nav>
 
   @include('rms.partials.technician-guide', ['guideId' => 'technical-guide', 'guideOpen' => true])
@@ -229,5 +230,6 @@
       </aside>
     </div>
   </section>
+  @include('rms.robots.partials.speed-reducer-oem-import')
 </div>
 @endsection

@@ -5,6 +5,7 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('rms/css/cockpit.css') }}?v=20261020-cockpit-evidence">
 <link rel="stylesheet" href="{{ asset('rms/css/technician-guide.css') }}?v=20261015-2255">
+<link rel="stylesheet" href="{{ asset('rms/css/speed-reducer-diagnosis.css') }}?v=1">
 @endpush
 @section('content')
 @php
@@ -21,7 +22,7 @@ $axisStateLabels = [
 @endphp
 <div class="cp-root" data-cockpit>
   <div class="cp-toolbar">
-    <div class="cp-links"><a href="{{ route('rms.robots.show',$robot) }}">← Robot detail</a><a href="{{ route('rms.robots.index') }}">Robot monitor</a><a href="{{ route('rms.robots.configuration', $robot) }}">⚙ Konfigurasi</a><a href="{{ route('rms.alarms.index', ['robot_id' => $robot->id]) }}#controller-alarm-history">Alarm history</a><a href="{{ route('rms.analytics.index') }}">RUN teramati</a><a href="{{ route('rms.maintenance.index', ['robot_id' => $robot->id]) }}">PM komponen</a>@if(Route::has('rms.logs.index'))<a href="{{ route('rms.logs.index', ['robot_id'=>$robot->id]) }}">Log robot</a>@endif</div>
+    <div class="cp-links"><a href="{{ route('rms.robots.show',$robot) }}">← Robot detail</a><a href="{{ route('rms.robots.index') }}">Robot monitor</a><a href="{{ route('rms.robots.configuration', $robot) }}">⚙ Konfigurasi</a><a href="{{ route('rms.alarms.index', ['robot_id' => $robot->id]) }}#controller-alarm-history">Alarm history</a><a href="{{ route('rms.analytics.index') }}">RUN teramati</a><a href="{{ route('rms.maintenance.index', ['robot_id' => $robot->id]) }}">PM komponen</a><a href="#speed-reducer-diagnosis">Speed Reducer</a>@if(Route::has('rms.logs.index'))<a href="{{ route('rms.logs.index', ['robot_id'=>$robot->id]) }}">Log robot</a>@endif</div>
     <div class="cp-tags">
       @if($isDemo)<span class="cp-pill cp-demo">DATA DEMO</span>@endif
       <span class="cp-pill {{ $fresh?'cp-ok':'cp-muted' }}">{{ $fresh?'TELEMETRY FRESH':'TELEMETRY STALE / UNKNOWN' }}</span>
@@ -108,6 +109,8 @@ $axisStateLabels = [
     </section>
   </div>
 
+  @include('rms.robots.partials.speed-reducer-diagnosis')
+
   @include('rms.partials.servo-current-panel', ['servoCurrent' => $servoCurrent, 'servoCurrentExternal' => true, 'servoCurrentHistoryLabel' => 'Maksimal 300 sampel representatif pada rentang cockpit yang dipilih.'])
 
   <div class="cp-columns cp-second-row">
@@ -120,7 +123,7 @@ $axisStateLabels = [
       </tbody></table></div>
       <div class="cp-smallnote">Threshold membandingkan <strong>Torque Magnitude |value|</strong>. Threshold hanya berstatus APPROVED setelah nilainya dicocokkan, Source Reference dicatat, dan pemeriksa diisi. Pengaturan ini tidak mengubah Controller Alarm.</div>
     </section>
-    <section class="cp-panel" id="reducer-config"><header><div><span class="cp-kicker">COMPONENT CONDITION</span><h3>Speed Reducer Life</h3></div><div class="cp-panel-tools"><span class="cp-panel-sub">Verified OEM / inspection evidence</span><a class="cp-action" href="{{ route('rms.robots.configuration', $robot) }}#reducer-config">＋ Input Evidence</a></div></header>
+    <section class="cp-panel" id="reducer-config"><header><div><span class="cp-kicker">COMPONENT CONDITION</span><h3>Speed Reducer Inspection Evidence</h3></div><div class="cp-panel-tools"><span class="cp-panel-sub">Verified OEM / inspection evidence</span><a class="cp-action" href="{{ route('rms.robots.configuration', $robot) }}#reducer-config">＋ Input Evidence</a></div></header>
       <div class="cp-chart-controls"><label for="cp-reducer-axis">Reducer / Axis</label><select id="cp-reducer-axis">@foreach($axes as $axis)<option value="{{ $axis }}">Axis {{ $axis }}</option>@endforeach</select></div>
       <div class="cp-chart-frame cp-reducer-chart"><canvas id="cp-reducer-chart" width="940" height="360" role="img" aria-label="Histori hasil inspeksi speed reducer"></canvas><div id="cp-reducer-empty" class="cp-empty" hidden>Belum ada pengukuran speed reducer terverifikasi dari sumber OEM.</div></div>
       <div class="cp-reducer-meta" id="cp-reducer-meta"></div>
@@ -144,6 +147,7 @@ $axisStateLabels = [
 <script>
 window.__RMS_COCKPIT__ = {{ \Illuminate\Support\Js::from($cockpitPayload) }};
 </script>
+<script src="{{ asset('rms/js/speed-reducer-diagnosis.js') }}?v=2" defer></script>
 <script src="{{ asset('rms/js/cockpit.js') }}?v=20261028-servo-current" defer></script>
 @endsection
 

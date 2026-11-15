@@ -68,6 +68,7 @@ use App\Http\Controllers\Web\EncoderMonitorController;
 
 use App\Http\Controllers\Web\RecommendationController;
 use App\Http\Controllers\Web\RmsConfigurationController;
+use App\Http\Controllers\Web\SpeedReducerCockpitController;
 use App\Http\Controllers\Web\HealthIntelligenceController;
 use App\Http\Controllers\Web\AlarmCountermeasureController;
 
@@ -156,6 +157,11 @@ Route::prefix('rms')
         ])
             ->whereNumber('robot')
             ->name('robots.cockpit');
+
+        Route::get('/robots/{robot}/cockpit/speed-reducer', [SpeedReducerCockpitController::class, 'show'])
+            ->whereNumber('robot')->middleware('throttle:60,1')->name('robots.cockpit.speed-reducer');
+        Route::post('/robots/{robot}/configuration/speed-reducer-oem', [SpeedReducerCockpitController::class, 'store'])
+            ->whereNumber('robot')->middleware('throttle:10,1')->name('robots.configuration.speed-reducer-oem');
 
         // Trusted-LAN configuration for evidence-backed threshold/reducer data.
         Route::get('/robots/{robot}/servo-current', [ServoCurrentController::class, 'edit'])
