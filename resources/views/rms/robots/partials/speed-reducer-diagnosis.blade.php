@@ -1,5 +1,5 @@
 <section class="cp-panel sr-panel" id="speed-reducer-diagnosis"
-         data-speed-reducer-url="{{ route('rms.robots.cockpit.speed-reducer', $robot) }}">
+         data-speed-reducer-url="{{ route('rms.robots.cockpit.speed-reducer', $robot, false) }}">
   <header>
     <div>
       <span class="cp-kicker">PREVENTIVE MAINTENANCE</span>
@@ -20,7 +20,8 @@
       <option value="telemetry">Telemetry RMS</option>
       <option value="oem">Diagnosis Yaskawa</option>
     </select></label>
-    <span class="sr-status" data-sr-status role="status">Memuat data reducer…</span>
+    <span class="sr-status" data-sr-status role="status">Menyiapkan grafik reducer…</span>
+    <noscript><p>Aktifkan JavaScript untuk memuat grafik reducer.</p></noscript>
   </div>
   <div class="sr-grid">
     <section class="sr-chart-card" aria-labelledby="sr-trend-heading">
