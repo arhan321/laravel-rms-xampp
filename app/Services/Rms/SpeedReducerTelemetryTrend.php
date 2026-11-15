@@ -26,9 +26,11 @@ final class SpeedReducerTelemetryTrend
 
         $now = CarbonImmutable::now('Asia/Jakarta');
         $from = $now->startOfDay()->subDays(self::DAYS - 1);
-        $key = 'rms.reducer.torque.v1.'.$robot->getKey().'.'.$now->toDateString();
+        // Cache scalar rows so the cache store does not need to unserialize a Collection.
+        $key = 'rms.reducer.torque.v2.'.$robot->getKey().'.'.$now->toDateString();
+        $rows = Cache::remember($key, 90, fn (): array => $this->dailyRows($robot, $from->utc(), $now->utc())->all());
 
-        return Cache::remember($key, 90, fn () => $this->dailyRows($robot, $from->utc(), $now->utc()));
+        return collect($rows);
     }
 
     private function dailyRows(Robot $robot, CarbonImmutable $from, CarbonImmutable $until): Collection
