@@ -3,7 +3,7 @@
 @section('subtitle', 'Tindak lanjut pemeriksaan dan penanganan alarm robot.')
 @push('styles')
 <link rel="stylesheet" href="{{ asset('rms/css/alarm-countermeasures.css') }}">
-<link rel="stylesheet" href="{{ asset('rms/css/alarm-follow-up.css') }}">
+<link rel="stylesheet" href="{{ asset('rms/css/alarm-follow-up.css') }}?v=3">
 <script defer src="{{ asset('rms/js/alarm-follow-up-signature.js') }}"></script>
 @endpush
 @section('content')
@@ -15,6 +15,8 @@
   $revisionLabels = ['created'=>'Draft dibuat', 'updated'=>'Tindak lanjut diperbarui', 'evidence'=>'Data teknis diperbarui', 'reopened'=>'Dikembalikan ke draft', ...$statuses];
   $case = $fui?->evidence;
   $work = $fui?->work ?? [];
+  $canEditDraft = $fui && $canWrite && $fui->status === 'draft';
+  $recommendationSections = $automaticGuidance ? \App\Services\Rms\AlarmFollowUpEvidence::recommendationSections($automaticGuidance) : [];
 @endphp
 <div class="rms-cm-toolbar">
   <a class="btn" href="{{ route('rms.alarms.index', ['robot_id' => $context['robot_id']]) }}">← Alarm Center</a>
@@ -52,7 +54,10 @@
       <div><dt>Waktu RMS</dt><dd>{{ \App\Services\Rms\AlarmFollowUpEvidence::wib($case['alarm']['observed_at']) }}</dd></div>
     </dl>
     <p>PDF memuat Pareto dari {{ $case['pareto']['total'] }} rekaman riwayat unik robot ini dan tren torque serta posisi PULSE di sekitar alarm.</p>
-    @if($canWrite && $fui->status === 'draft')
+    @if($canEditDraft)
+      @if(!$automaticGuidance)
+        <p class="fui-muted">Draft ini dibuat sebelum pengisian otomatis. Gunakan Ambil data terbaru untuk mengisi kondisi dan rekomendasi tanpa menghapus catatan yang tersimpan.</p>
+      @endif
       <details><summary>Perbarui data teknis dan sumber panduan</summary>
         <form class="fui-form fui-inline" method="POST" action="{{ route('rms.alarms.fui.refresh', $routeParams) }}">
           @csrf
@@ -64,6 +69,22 @@
     @endif
   @endif
 </section>
+
+@if($automaticGuidance && !$canEditDraft)
+  <section class="panel fui-section">
+    <div class="panel-header"><h2>Kondisi dan rekomendasi dari RMS</h2></div>
+    <h3>Kondisi saat ini</h3>
+    <p class="fui-text">{{ $automaticGuidance['condition'] }}</p>
+    <div class="fui-grid">
+      @foreach($recommendationSections as $section)
+        <article class="fui-source">
+          <h3>{{ $section['title'] }}</h3>
+          <p class="fui-text">{{ $section['text'] }}</p>
+        </article>
+      @endforeach
+    </div>
+  </section>
+@endif
 
 @if($fui)
   <section class="panel fui-section">
@@ -118,6 +139,14 @@
 
   <section class="panel fui-section">
     <div class="panel-header"><h2>Tindak lanjut mekanik</h2></div>
+    @php
+      $editableFields = $automaticGuidance ? array_replace($workFields, [
+          'current_condition' => 'Catatan kondisi lapangan',
+          'recommendation' => 'Tambahan rekomendasi dari tim',
+          'mechanic_action' => 'Tindakan yang dilakukan',
+      ]) : $workFields;
+      $optionalFields = ['current_condition', 'recommendation'];
+    @endphp
     @if($case['previous'])
       <details>
         <summary>FUI sebelumnya · {{ $case['previous']['number'] }}</summary>
@@ -126,26 +155,50 @@
         @endforeach
       </details>
     @endif
-    @if($canWrite && $fui->status === 'draft')
+    @if($canEditDraft)
       <form class="fui-form" method="POST" action="{{ route('rms.alarms.fui.update', $routeParams) }}">
         @csrf @method('PATCH')
         <input type="hidden" name="version" value="{{ $fui->version }}">
+        @if($automaticGuidance)
+          <p class="fui-muted" id="fui-system-hint">Kondisi dan kedua rekomendasi diisi otomatis oleh RMS. Catat hasil pemeriksaan, tindakan yang dilakukan, dan status pekerjaan di bawahnya.</p>
+          <label class="field fui-system-condition" for="fui-system-condition">Kondisi saat ini · Otomatis dari RMS
+            <textarea id="fui-system-condition" class="input fui-system-value" rows="4" readonly aria-describedby="fui-system-hint">{{ $automaticGuidance['condition'] }}</textarea>
+          </label>
+          <div class="fui-grid">
+            @foreach($recommendationSections as $source => $section)
+              <label class="field" for="fui-system-{{ $source }}">{{ $section['title'] }} · Otomatis dari RMS
+                <textarea id="fui-system-{{ $source }}" class="input fui-system-value" rows="6" readonly aria-describedby="fui-system-hint">{{ $section['text'] }}</textarea>
+              </label>
+            @endforeach
+          </div>
+        @endif
         <div class="fui-grid">
           <label class="field">Pengisi (Team Leader / Foreman)<input class="input" name="editor" value="{{ old('editor', $work['editor'] ?? '') }}" required maxlength="120"></label>
           <label class="field">Nama mekanik<input class="input" name="mechanic_name" value="{{ old('mechanic_name', $work['mechanic_name'] ?? '') }}" maxlength="120"></label>
           <label class="field">Tanggal tindak lanjut (WIB)<input class="input" type="date" name="follow_date" max="{{ now('Asia/Jakarta')->toDateString() }}" value="{{ old('follow_date', $work['follow_date'] ?? '') }}"></label>
           <label class="field">Jam operasi saat tindak lanjut<input class="input" type="number" name="follow_hours" min="0" max="999999999" step="any" value="{{ old('follow_hours', $work['follow_hours'] ?? '') }}"></label>
-          @foreach($workFields as $field => $label)
+          @foreach($editableFields as $field => $label)
+            @continue($automaticGuidance && in_array($field, $optionalFields, true))
             <label class="field">{{ $label }}<textarea class="input" name="{{ $field }}" maxlength="2500" rows="3">{{ old($field, $work[$field] ?? '') }}</textarea></label>
           @endforeach
           <label class="field">Status pekerjaan<select class="input" name="result">@foreach($results as $key => $label)<option value="{{ $key }}" @selected(old('result', $work['result'] ?? 'open') === $key)>{{ $label }}</option>@endforeach</select></label>
         </div>
+        @if($automaticGuidance)
+          <details class="fui-extra-notes" @if(filled(old('current_condition', $work['current_condition'] ?? null)) || filled(old('recommendation', $work['recommendation'] ?? null)) || $errors->hasAny($optionalFields)) open @endif>
+            <summary>Catatan tambahan (opsional)</summary>
+            <div class="fui-grid">
+              @foreach($optionalFields as $field)
+                <label class="field">{{ $editableFields[$field] }}<textarea class="input" name="{{ $field }}" maxlength="2500" rows="3">{{ old($field, $work[$field] ?? '') }}</textarea></label>
+              @endforeach
+            </div>
+          </details>
+        @endif
         <button type="submit" class="btn primary">Simpan tindak lanjut</button>
       </form>
     @else
       <p>Mekanik {{ $work['mechanic_name'] ?? '—' }} · {{ $work['follow_date'] ?? '—' }} · {{ $results[$work['result'] ?? ''] ?? '—' }}</p>
       <div class="fui-grid">
-        @foreach($workFields as $field => $label)
+        @foreach($editableFields as $field => $label)
           <div><strong>{{ $label }}</strong><p class="fui-text">{{ $work[$field] ?? '—' }}</p></div>
         @endforeach
       </div>

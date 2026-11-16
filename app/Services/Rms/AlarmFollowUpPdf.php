@@ -10,11 +10,16 @@ use FPDF;
 final class AlarmFollowUpPdf
 {
     private const WIDTH = 190;
+
     private const INK = [27, 44, 40];
+
     private const GREEN = [45, 102, 79];
+
     private const GRID = [217, 227, 221];
+
     private const RED = [155, 49, 39];
-    private const PALETTE = [[32,87,157], [157,78,32], [34,109,77], [145,55,85], [99,68,157], [108,105,31]];
+
+    private const PALETTE = [[32, 87, 157], [157, 78, 32], [34, 109, 77], [145, 55, 85], [99, 68, 157], [108, 105, 31]];
 
     public function render(RobotAlarmFollowUp $report): string
     {
@@ -211,6 +216,7 @@ final class AlarmFollowUpPdf
             $pdf->SetFont('RMS', '', 10);
             $pdf->Cell(self::WIDTH, 6, 'Belum ada sampel valid pada jendela waktu ini.', 0, 0, 'C');
             $pdf->SetXY(10, $origin + 67);
+
             return;
         }
         $spread = $maximum - $minimum;
@@ -249,6 +255,7 @@ final class AlarmFollowUpPdf
             foreach ($series[$axis] as $sample) {
                 if ($sample === null) {
                     $last = null;
+
                     continue;
                 }
                 $x = $left + ($right - $left) * $sample['minute'] / 30;
@@ -271,6 +278,7 @@ final class AlarmFollowUpPdf
     {
         $case = $report->evidence;
         $work = $report->work ?? [];
+        $guidance = $case['automatic_guidance'] ?? null;
         $prior = $case['previous'];
         $this->note($pdf, 'Mekanik: '.($work['mechanic_name'] ?? '-').'  |  Tanggal: '.($work['follow_date'] ?? '-').'  |  Jam operasi: '.($work['follow_hours'] ?? '-'));
         $this->note($pdf, 'Pengisi: '.($work['editor'] ?? '-').'  |  Status pekerjaan: '.(RobotAlarmFollowUp::RESULTS[$work['result'] ?? ''] ?? '-'));
@@ -280,8 +288,26 @@ final class AlarmFollowUpPdf
         if ($prior) {
             $this->textBlock($pdf, $report, 'TINDAK LANJUT MEKANIK SEBELUMNYA', $prior['work']['mechanic_action'] ?? '-');
         }
+        $shownGuides = [];
+        if ($guidance !== null) {
+            $condition = $guidance['condition'];
+            if (filled($work['current_condition'] ?? null)) {
+                $condition .= "\nCatatan kondisi lapangan: ".$work['current_condition'];
+            }
+            $this->textBlock($pdf, $report, 'KONDISI SAAT INI', $condition);
+
+            foreach (AlarmFollowUpEvidence::recommendationSections($guidance) as $section) {
+                $shownGuides += array_fill_keys($section['guide_ids'], true);
+                $this->textBlock($pdf, $report, strtoupper($section['title']), $section['text']);
+            }
+            if (filled($work['recommendation'] ?? null)) {
+                $this->textBlock($pdf, $report, 'TAMBAHAN REKOMENDASI DARI TIM', $work['recommendation']);
+            }
+        } else {
+            $this->textBlock($pdf, $report, 'KONDISI SAAT INI', $work['current_condition'] ?? '-');
+            $this->textBlock($pdf, $report, 'REKOMENDASI SAAT INI', $work['recommendation'] ?? '-');
+        }
         foreach ([
-            'current_condition' => 'KONDISI SAAT INI', 'recommendation' => 'REKOMENDASI SAAT INI',
             'mechanic_findings' => 'HASIL PEMERIKSAAN MEKANIK', 'mechanic_action' => 'FOLLOW UP OLEH MEKANIK',
             'foreman_alternative' => 'SOLUSI ALTERNATIF FOREMAN',
         ] as $key => $label) {
@@ -299,7 +325,7 @@ final class AlarmFollowUpPdf
                     'alarm_content' => 'Isi alarm / gejala', 'cause' => 'Temuan / penyebab',
                     'measure' => 'Panduan tindakan', 'result_notes' => 'Catatan hasil',
                 ] as $field => $label) {
-                    if (filled($guide[$field] ?? null)) {
+                    if (filled($guide[$field] ?? null) && ! ($field === 'measure' && isset($shownGuides[$guide['id']]))) {
                         $details[] = $label.': '.$guide[$field];
                     }
                 }

@@ -42,6 +42,9 @@ final class AlarmFollowUpController extends BaseRmsWebController
             'title' => 'Follow Up Instruction', 'context' => $context, 'fui' => $report,
             'routeParams' => [$kind, $record], 'workFields' => self::WORK_FIELDS,
             'revisions' => $report?->revisions()->orderByDesc('version')->get() ?? collect(),
+            'automaticGuidance' => $report
+                ? ($report->evidence['automatic_guidance'] ?? null)
+                : $this->evidence->previewGuidance($context),
             'canWrite' => $this->canWrite(),
         ]);
     }
@@ -111,7 +114,7 @@ final class AlarmFollowUpController extends BaseRmsWebController
             $this->saveRevision($fui, 'evidence', $data['editor']);
         }, 3);
 
-        return $this->backTo($kind, $record, 'Data robot, alarm, dan sumber panduan diperbarui.');
+        return $this->backTo($kind, $record, 'Data robot, alarm, dan rekomendasi otomatis diperbarui.');
     }
 
     public function sign(Request $request, string $kind, string $record): RedirectResponse

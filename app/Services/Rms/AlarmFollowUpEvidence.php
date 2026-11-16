@@ -16,6 +16,16 @@ final class AlarmFollowUpEvidence
 {
     public const AXES = ['S', 'L', 'U', 'R', 'B', 'T'];
 
+    private const GUIDE_SOURCES = [
+        'yaskawa_manual' => 'Manual Yaskawa',
+        'field_experience' => 'Pengalaman tim jalur',
+    ];
+
+    private const FIELD_RESULTS = [
+        'resolved' => 'Dilaporkan berhasil',
+        'improved' => 'Membaik / perlu tindak lanjut',
+    ];
+
     public function __construct(
         private readonly AlarmCountermeasureStore $guides,
         private readonly AlarmParetoSummary $pareto,
@@ -45,15 +55,7 @@ final class AlarmFollowUpEvidence
             $powerHours[$key] = $this->hours->forSample($reading, $type);
         }
 
-        $references = [];
-        foreach (['yaskawa_manual', 'field_experience'] as $source) {
-            $references[$source] = $this->guides->matching($context)->where('is_active', true)
-                ->where('source_type', $source)->orderBy('all_subcodes')->orderByDesc('id')->limit(2)->get()
-                ->map(fn ($guide) => $guide->only([
-                    'id', 'version', 'title', 'alarm_content', 'cause', 'measure', 'source_reference',
-                    'source_revision', 'reported_by', 'work_area', 'result', 'result_notes',
-                ]))->all();
-        }
+        $references = $this->references($context);
 
         $previous = RobotAlarmFollowUp::query()->where('robot_id', $robotId)
             ->where('alarm_code', $context['alarm_code'])->where('subcode', $context['subcode'])
@@ -74,8 +76,122 @@ final class AlarmFollowUpEvidence
             'pareto' => $faults,
             'history' => $latest,
             'references' => $references,
+            'automatic_guidance' => $this->guidance($context, $references),
             'previous' => $previous ? ['number' => $previous->number(), 'work' => $previous->work] : null,
             'trend' => $this->trend($robotId, $anchor),
+        ];
+    }
+
+    public function previewGuidance(array $context): array
+    {
+        return $this->guidance($context, $this->references($context));
+    }
+
+    /** @return array<string, array{title: string, text: string, guide_ids: list<int>}> */
+    public static function recommendationSections(array $guidance): array
+    {
+        $titles = [
+            'yaskawa_manual' => 'Rekomendasi Manual Book Yaskawa',
+            'field_experience' => 'Rekomendasi Tim Jalur',
+        ];
+        $empty = [
+            'yaskawa_manual' => 'Belum ada rekomendasi dari Manual Book Yaskawa yang cocok.',
+            'field_experience' => 'Belum ada pengalaman Tim Jalur yang cocok dengan hasil tercatat berhasil atau membaik.',
+        ];
+        $lines = [];
+        $guideIds = [];
+        foreach ($guidance['recommendations'] ?? [] as $guide) {
+            // Drafts from before source keys were saved can be read from their stored labels.
+            $source = $guide['source'] ?? array_search($guide['label'] ?? null, self::GUIDE_SOURCES, true);
+            if ($source === false || ! isset($titles[$source])) {
+                continue;
+            }
+            $heading = self::GUIDE_SOURCES[$source].': '.$guide['title'].' (v'.$guide['version'].')';
+            $lines[$source][] = implode("\n", array_filter([$heading, $guide['details'], $guide['measure']], 'filled'));
+            $guideIds[$source][] = (int) $guide['guide_id'];
+        }
+
+        $sections = [];
+        foreach ($titles as $source => $title) {
+            $sections[$source] = [
+                'title' => $title,
+                'text' => isset($lines[$source]) ? implode("\n\n", $lines[$source]) : $empty[$source],
+                'guide_ids' => $guideIds[$source] ?? [],
+            ];
+        }
+
+        return $sections;
+    }
+
+    private function references(array $context): array
+    {
+        $references = [];
+        foreach (array_keys(self::GUIDE_SOURCES) as $source) {
+            $query = $this->guides->matching($context)->where('is_active', true)
+                ->where('source_type', $source);
+
+            // Keep useful field references ahead of untested or unsuccessful entries.
+            if ($source === 'field_experience') {
+                $query->orderByRaw('CASE WHEN result IN (?, ?) THEN 0 ELSE 1 END', array_keys(self::FIELD_RESULTS));
+            }
+
+            $references[$source] = $query->orderBy('all_subcodes')
+                ->orderByRaw('CASE WHEN scope_robot_id IS NULL THEN 1 ELSE 0 END')
+                ->orderByRaw('CASE WHEN firmware_version IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('id')->limit(2)->get()
+                ->map(fn ($guide) => $guide->only([
+                    'id', 'version', 'title', 'alarm_content', 'cause', 'measure', 'source_reference',
+                    'source_revision', 'reported_by', 'work_area', 'result', 'result_notes',
+                ]))->all();
+        }
+
+        return $references;
+    }
+
+    private function guidance(array $context, array $references): array
+    {
+        $fault = (string) $context['alarm_code'];
+        if (filled($context['subcode'])) {
+            $fault .= ' / '.$context['subcode'];
+        }
+        $name = trim($context['alarm_name']);
+        $condition = 'RMS mencatat alarm '.$fault.($name !== '' ? ' - '.$name : '')
+            .' pada robot '.$context['robot']->robot_code.'.'
+            ."\nWaktu tercatat di RMS: ".self::wib($context['observed_at']).'.'
+            ."\nKondisi aktual robot perlu dikonfirmasi di lapangan.";
+
+        $recommendations = [];
+        foreach (self::GUIDE_SOURCES as $source => $label) {
+            foreach ($references[$source] as $guide) {
+                $outcome = self::FIELD_RESULTS[$guide['result'] ?? ''] ?? null;
+                if (blank($guide['measure']) || ($source === 'field_experience' && $outcome === null)) {
+                    continue;
+                }
+
+                $reference = trim((string) $guide['source_reference']);
+                $details = array_filter([
+                    $reference,
+                    $source === 'field_experience' ? $guide['work_area'] : null,
+                    $source === 'field_experience' ? $guide['reported_by'] : null,
+                    $source === 'field_experience' ? $outcome : null,
+                ], fn ($value) => filled($value));
+
+                $recommendations[] = [
+                    'guide_id' => $guide['id'],
+                    'source' => $source,
+                    'label' => $label,
+                    'title' => $guide['title'],
+                    'version' => $guide['version'],
+                    'measure' => $guide['measure'],
+                    'details' => implode(' | ', $details),
+                ];
+                break;
+            }
+        }
+
+        return [
+            'condition' => $condition,
+            'recommendations' => $recommendations,
         ];
     }
 
